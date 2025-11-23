@@ -1,0 +1,8 @@
+logging:
+  level:
+    com.alfredoalpizar.rag: INFO
+    org.springframework.web: WARN
+
+loop:
+  streaming:
+    mode: status_only  # Hide reasoning in prod

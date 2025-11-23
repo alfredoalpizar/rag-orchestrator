@@ -1,0 +1,8 @@
+logging:
+  level:
+    com.alfredoalpizar.rag: DEBUG
+    org.springframework.web.reactive.function.client: TRACE
+
+loop:
+  streaming:
+    mode: full_reasoning  # Show all reasoning in dev
