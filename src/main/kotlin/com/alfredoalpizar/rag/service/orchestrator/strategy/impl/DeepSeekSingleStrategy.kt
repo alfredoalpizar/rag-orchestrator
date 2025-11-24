@@ -108,6 +108,9 @@ class DeepSeekSingleStrategy(
                 }
             }
 
+            // Accumulate token usage (typically sent in final chunk)
+            parsed.tokensUsed?.let { totalTokens += it }
+
             // Completion
             if (parsed.finishReason != null) {
                 logger.debug {
