@@ -40,6 +40,17 @@ deepseek:
     timeout-seconds: 60
     max-retries: 3
 
+# Qwen API Configuration
+qwen:
+  api:
+    base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+    api-key: ${QWEN_API_KEY:}
+    thinking-model: ${QWEN_THINKING_MODEL:qwen-max}
+    instruct-model: ${QWEN_INSTRUCT_MODEL:qwen-plus}
+    embedding-model: ${QWEN_EMBEDDING_MODEL:text-embedding-v2}
+    timeout-seconds: 60
+    max-retries: 3
+
 # ChromaDB Configuration
 chromadb:
   base-url: ${CHROMADB_BASE_URL:http://localhost:8000}
@@ -52,13 +63,30 @@ loop:
   max-iterations: 10
   max-tokens: 4096
   temperature: 0.7
-  use-reasoning-model: false  # Set true to use deepseek-reasoner
+
+  # Model Strategy Selection (NEW!)
+  # Options: deepseek_single | qwen_single_thinking | qwen_single_instruct | qwen_hybrid_staged
+  model-strategy: deepseek_single  # Change this to switch strategies
+
+  # Legacy: Use DeepSeek reasoner vs chat (only applies to deepseek_single strategy)
+  use-reasoning-model: false
+
+  # Thinking model settings (for qwen thinking models)
+  thinking:
+    timeout-seconds: 120
+    show-reasoning-traces: true  # Show reasoning/thinking process
+
+  # Instruct model settings (for qwen instruct models)
+  instruct:
+    timeout-seconds: 30
+    max-retries: 3
 
   # Streaming Configuration
   streaming:
     mode: status_only  # Options: status_only | full_reasoning
     show-tool-calls: true
     show-rag-queries: true
+    show-reasoning-traces: false  # Enable to stream reasoning traces to client
     buffer-size: 256
 
 # Conversation Management

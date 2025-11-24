@@ -1,35 +1,70 @@
 package com.alfredoalpizar.rag.service.orchestrator
 
-import com.alfredoalpizar.rag.client.deepseek.*
 import com.alfredoalpizar.rag.config.LoopProperties
 import com.alfredoalpizar.rag.model.domain.*
 import com.alfredoalpizar.rag.model.response.StreamEvent
 import com.alfredoalpizar.rag.service.context.ContextManager
 import com.alfredoalpizar.rag.service.finalizer.FinalizerStrategy
+import com.alfredoalpizar.rag.service.orchestrator.strategy.*
 import com.alfredoalpizar.rag.service.tool.ToolRegistry
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.reactor.awaitSingle
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
 
+/**
+ * Orchestrator Service - Model-agnostic agentic loop orchestration.
+ *
+ * Uses the Strategy Pattern to support multiple model implementations:
+ * - DeepSeek (single model)
+ * - Qwen (thinking, instruct, or hybrid staged)
+ * - Future: Claude, GPT-4, etc.
+ *
+ * Provides both streaming (SSE for chat UI) and synchronous (internal services) APIs.
+ */
 @Service
 class OrchestratorService(
     private val contextManager: ContextManager,
     private val toolRegistry: ToolRegistry,
-    private val deepSeekClient: DeepSeekClient,
+    private val strategyExecutor: ModelStrategyExecutor,  // Injected based on configuration
     private val finalizerStrategy: FinalizerStrategy,
     private val properties: LoopProperties,
     private val objectMapper: ObjectMapper
 ) {
     private val logger = KotlinLogging.logger {}
 
+    init {
+        val metadata = strategyExecutor.getStrategyMetadata()
+        logger.info {
+            """
+            ╔════════════════════════════════════════════════════════╗
+            ║  ORCHESTRATOR SERVICE INITIALIZED                      ║
+            ║  Active Strategy: ${metadata.name.padEnd(35)}║
+            ║  Strategy Type: ${metadata.strategyType.name.padEnd(37)}║
+            ║  Reasoning Stream: ${if (metadata.supportsReasoningStream) "YES ✓" else "NO  ✗".padEnd(39)}║
+            ║  ${metadata.description.padEnd(52)}║
+            ╚════════════════════════════════════════════════════════╝
+            """.trimIndent()
+        }
+    }
+
+    /**
+     * Process a user message with streaming support (for chat UI with SSE).
+     *
+     * Emits progressive StreamEvent updates as the agentic loop executes.
+     * Supports reasoning traces for models that provide them.
+     */
     suspend fun processMessageStream(
         conversationId: String,
         userMessage: String
     ): Flow<StreamEvent> = flow {
+
+        val metadata = strategyExecutor.getStrategyMetadata()
+        logger.info {
+            "Processing message (stream) [conversation=$conversationId, strategy=${metadata.name}]"
+        }
 
         try {
             // Step 1: Load conversation
@@ -57,22 +92,14 @@ class OrchestratorService(
 
             val ragResults = performRAGSearch(userMessage)
 
-            // Build initial context
-            val messages = mutableListOf<Message>()
-            messages.addAll(context.messages)
+            // Build message list with conversation history
+            val messages = buildMessageList(context, ragResults)
 
-            // Add RAG results as system message if available
-            if (ragResults.isNotBlank()) {
-                messages.add(Message(
-                    role = MessageRole.SYSTEM,
-                    content = "Knowledge base results:\n$ragResults"
-                ))
-            }
-
-            // Step 4: Tool-calling loop
+            // Step 4: Tool-calling loop with strategy
             var iteration = 0
             var totalTokens = 0
             var continueLoop = true
+            var finalContent = ""
 
             while (continueLoop && iteration < properties.maxIterations) {
                 iteration++
@@ -82,92 +109,156 @@ class OrchestratorService(
                     status = "Iteration $iteration of ${properties.maxIterations}..."
                 ))
 
-                logger.debug { "Starting iteration $iteration for conversation $conversationId" }
+                logger.debug {
+                    "[${metadata.name}] Iteration $iteration/${properties.maxIterations}"
+                }
 
-                // Call LLM
-                val request = buildDeepSeekRequest(messages)
-                val response = deepSeekClient.chat(request).awaitSingle()
-
-                val assistantMessage = response.choices.firstOrNull()?.message
-                    ?: throw IllegalStateException("No response from DeepSeek API")
-
-                totalTokens += response.usage?.totalTokens ?: 0
-
-                // Check for tool calls
-                if (!assistantMessage.toolCalls.isNullOrEmpty()) {
-                    logger.debug { "Assistant requested ${assistantMessage.toolCalls.size} tool calls" }
-
-                    // Add assistant message with tool calls
-                    messages.add(Message(
-                        role = MessageRole.ASSISTANT,
-                        content = assistantMessage.content ?: "",
-                        toolCalls = assistantMessage.toolCalls.map { it.toToolCall() }
-                    ))
-
-                    // Execute each tool
-                    for (toolCall in assistantMessage.toolCalls) {
-
-                        // Emit ToolCallStart
-                        emit(StreamEvent.ToolCallStart(
-                            conversationId = conversationId,
-                            toolName = toolCall.function.name,
-                            toolCallId = toolCall.id,
-                            arguments = parseArguments(toolCall.function.arguments)
-                        ))
-
-                        // Execute tool
-                        val result = toolRegistry.executeTool(toolCall.toToolCall())
-
-                        // Emit ToolCallResult
-                        emit(StreamEvent.ToolCallResult(
-                            conversationId = conversationId,
-                            toolName = result.toolName,
-                            toolCallId = result.toolCallId,
-                            result = result.result,
-                            success = result.success
-                        ))
-
-                        // Add result to context
-                        messages.add(Message(
-                            role = MessageRole.TOOL,
-                            content = result.result,
-                            toolCallId = result.toolCallId
-                        ))
-
-                        // Update conversation stats
-                        context.conversation.toolCallsCount++
-                    }
-
-                } else {
-                    // No tool calls - final response
-                    continueLoop = false
-
-                    val finalContent = assistantMessage.content ?: ""
-                    messages.add(Message(role = MessageRole.ASSISTANT, content = finalContent))
-
-                    logger.debug { "Final response generated for conversation $conversationId" }
-
-                    // Save assistant message
-                    contextManager.addMessage(
-                        conversationId,
-                        Message(role = MessageRole.ASSISTANT, content = finalContent)
-                    )
-
-                    // Apply finalizer
-                    val formattedResponse = finalizerStrategy.format(
-                        finalContent,
-                        mapOf(
-                            "iterations" to iteration,
-                            "tokens" to totalTokens,
-                            "toolCalls" to context.conversation.toolCallsCount
-                        )
-                    )
-
-                    // Emit response
-                    emit(StreamEvent.ResponseChunk(
+                // Execute strategy iteration (STREAMING MODE)
+                strategyExecutor.executeIteration(
+                    messages = messages,
+                    tools = toolRegistry.getToolDefinitions(),
+                    iterationContext = IterationContext(
                         conversationId = conversationId,
-                        content = formattedResponse
-                    ))
+                        iteration = iteration,
+                        maxIterations = properties.maxIterations,
+                        streamingMode = StreamingMode.PROGRESSIVE  // Progressive chunks
+                    )
+                ).collect { strategyEvent ->
+
+                    // Transform StrategyEvent → StreamEvent
+                    when (strategyEvent) {
+                        is StrategyEvent.ReasoningChunk -> {
+                            // Only some strategies support reasoning
+                            if (properties.streaming.showReasoningTraces) {
+                                emit(StreamEvent.ReasoningTrace(
+                                    conversationId = conversationId,
+                                    content = strategyEvent.content,
+                                    stage = com.alfredoalpizar.rag.model.response.ReasoningStage.PLANNING,
+                                    metadata = strategyEvent.metadata
+                                ))
+                            }
+                        }
+
+                        is StrategyEvent.ContentChunk -> {
+                            emit(StreamEvent.ResponseChunk(
+                                conversationId = conversationId,
+                                content = strategyEvent.content
+                            ))
+                            finalContent += strategyEvent.content
+                        }
+
+                        is StrategyEvent.ToolCallDetected -> {
+                            // Single tool call detected (streaming)
+                            emit(StreamEvent.ToolCallStart(
+                                conversationId = conversationId,
+                                toolName = strategyEvent.toolCall.function.name,
+                                toolCallId = strategyEvent.toolCallId,
+                                arguments = parseArguments(strategyEvent.toolCall.function.arguments)
+                            ))
+
+                            // Execute tool
+                            val result = toolRegistry.executeTool(strategyEvent.toolCall)
+
+                            emit(StreamEvent.ToolCallResult(
+                                conversationId = conversationId,
+                                toolName = result.toolName,
+                                toolCallId = result.toolCallId,
+                                result = result.result,
+                                success = result.success
+                            ))
+
+                            // Add tool result to messages
+                            messages.add(Message(
+                                role = MessageRole.TOOL,
+                                content = result.result,
+                                toolCallId = result.toolCallId
+                            ))
+
+                            context.conversation.toolCallsCount++
+                        }
+
+                        is StrategyEvent.ToolCallsComplete -> {
+                            // Multiple tool calls complete (non-streaming)
+                            // Add assistant message with tool calls
+                            messages.add(Message(
+                                role = MessageRole.ASSISTANT,
+                                content = strategyEvent.assistantContent ?: "",
+                                toolCalls = strategyEvent.toolCalls
+                            ))
+
+                            // Execute all tools
+                            for (toolCall in strategyEvent.toolCalls) {
+                                emit(StreamEvent.ToolCallStart(
+                                    conversationId = conversationId,
+                                    toolName = toolCall.function.name,
+                                    toolCallId = toolCall.id,
+                                    arguments = parseArguments(toolCall.function.arguments)
+                                ))
+
+                                val result = toolRegistry.executeTool(toolCall)
+
+                                emit(StreamEvent.ToolCallResult(
+                                    conversationId = conversationId,
+                                    toolName = result.toolName,
+                                    toolCallId = result.toolCallId,
+                                    result = result.result,
+                                    success = result.success
+                                ))
+
+                                messages.add(Message(
+                                    role = MessageRole.TOOL,
+                                    content = result.result,
+                                    toolCallId = result.toolCallId
+                                ))
+
+                                context.conversation.toolCallsCount++
+                            }
+                        }
+
+                        is StrategyEvent.FinalResponse -> {
+                            finalContent = strategyEvent.content
+
+                            // Save assistant message
+                            contextManager.addMessage(
+                                conversationId,
+                                Message(role = MessageRole.ASSISTANT, content = finalContent)
+                            )
+
+                            // Apply finalizer
+                            val formattedResponse = finalizerStrategy.format(
+                                finalContent,
+                                mapOf(
+                                    "iterations" to iteration,
+                                    "tokens" to (totalTokens + strategyEvent.tokensUsed),
+                                    "toolCalls" to context.conversation.toolCallsCount
+                                )
+                            )
+
+                            emit(StreamEvent.ResponseChunk(
+                                conversationId = conversationId,
+                                content = formattedResponse
+                            ))
+                        }
+
+                        is StrategyEvent.StatusUpdate -> {
+                            emit(StreamEvent.StatusUpdate(
+                                conversationId = conversationId,
+                                status = strategyEvent.status,
+                                phase = strategyEvent.phase
+                            ))
+                        }
+
+                        is StrategyEvent.IterationComplete -> {
+                            totalTokens += strategyEvent.tokensUsed
+                            continueLoop = strategyEvent.shouldContinue
+
+                            logger.debug {
+                                "Iteration $iteration complete: " +
+                                        "tokens=${strategyEvent.tokensUsed}, " +
+                                        "continue=$continueLoop"
+                            }
+                        }
+                    }
                 }
             }
 
@@ -175,7 +266,10 @@ class OrchestratorService(
             context.conversation.totalTokens += totalTokens
             contextManager.saveConversation(context)
 
-            logger.info { "Completed processing for conversation $conversationId: iterations=$iteration, tokens=$totalTokens" }
+            logger.info {
+                "Completed processing (stream) [conversation=$conversationId, " +
+                        "strategy=${metadata.name}, iterations=$iteration, tokens=$totalTokens]"
+            }
 
             emit(StreamEvent.Completed(
                 conversationId = conversationId,
@@ -194,6 +288,134 @@ class OrchestratorService(
         }
     }
 
+    /**
+     * Process a user message synchronously (for automated internal services).
+     *
+     * Returns final result directly without streaming.
+     * More efficient for batch/automated operations.
+     */
+    suspend fun processMessageSync(
+        conversationId: String,
+        userMessage: String
+    ): SyncResult {
+
+        val metadata = strategyExecutor.getStrategyMetadata()
+        logger.info {
+            "Processing message (sync) [conversation=$conversationId, strategy=${metadata.name}]"
+        }
+
+        try {
+            // Load conversation
+            var context = contextManager.loadConversation(conversationId)
+            context = contextManager.addMessage(conversationId, Message(MessageRole.USER, userMessage))
+
+            // Initial RAG
+            val ragResults = performRAGSearch(userMessage)
+            val messages = buildMessageList(context, ragResults)
+
+            // Tool-calling loop
+            var iteration = 0
+            var totalTokens = 0
+            var continueLoop = true
+            var finalContent = ""
+
+            while (continueLoop && iteration < properties.maxIterations) {
+                iteration++
+
+                logger.debug { "[${metadata.name}] Iteration $iteration/${properties.maxIterations}" }
+
+                // Execute strategy iteration (SYNCHRONOUS MODE)
+                strategyExecutor.executeIteration(
+                    messages = messages,
+                    tools = toolRegistry.getToolDefinitions(),
+                    iterationContext = IterationContext(
+                        conversationId = conversationId,
+                        iteration = iteration,
+                        maxIterations = properties.maxIterations,
+                        streamingMode = StreamingMode.FINAL_ONLY  // Only final results
+                    )
+                ).collect { strategyEvent ->
+
+                    when (strategyEvent) {
+                        is StrategyEvent.ToolCallsComplete -> {
+                            messages.add(Message(
+                                role = MessageRole.ASSISTANT,
+                                content = strategyEvent.assistantContent ?: "",
+                                toolCalls = strategyEvent.toolCalls
+                            ))
+
+                            strategyEvent.toolCalls.forEach { toolCall ->
+                                val result = toolRegistry.executeTool(toolCall)
+                                messages.add(Message(
+                                    role = MessageRole.TOOL,
+                                    content = result.result,
+                                    toolCallId = toolCall.id
+                                ))
+                                context.conversation.toolCallsCount++
+                            }
+                        }
+
+                        is StrategyEvent.FinalResponse -> {
+                            finalContent = strategyEvent.content
+                            contextManager.addMessage(
+                                conversationId,
+                                Message(role = MessageRole.ASSISTANT, content = finalContent)
+                            )
+                        }
+
+                        is StrategyEvent.IterationComplete -> {
+                            totalTokens += strategyEvent.tokensUsed
+                            continueLoop = strategyEvent.shouldContinue
+                        }
+
+                        // Ignore progressive chunks in sync mode
+                        is StrategyEvent.ContentChunk,
+                        is StrategyEvent.ReasoningChunk,
+                        is StrategyEvent.ToolCallDetected,
+                        is StrategyEvent.StatusUpdate -> { /* ignore */ }
+                    }
+                }
+            }
+
+            // Save conversation
+            context.conversation.totalTokens += totalTokens
+            contextManager.saveConversation(context)
+
+            logger.info {
+                "Completed processing (sync) [conversation=$conversationId, " +
+                        "strategy=${metadata.name}, iterations=$iteration, tokens=$totalTokens]"
+            }
+
+            return SyncResult(
+                content = finalContent,
+                iterationsUsed = iteration,
+                tokensUsed = totalTokens,
+                conversationId = conversationId
+            )
+
+        } catch (e: Exception) {
+            logger.error(e) { "Error processing message (sync) for conversation $conversationId" }
+            throw e
+        }
+    }
+
+    // ===== Private Helper Methods =====
+
+    private fun buildMessageList(context: com.alfredoalpizar.rag.model.domain.ConversationContext, ragResults: String): MutableList<Message> {
+        val messages = mutableListOf<Message>()
+        messages.addAll(context.messages)
+
+        // Add RAG results as system message if available
+        if (ragResults.isNotBlank()) {
+            messages.add(Message(
+                role = MessageRole.SYSTEM,
+                content = "Knowledge base results:\n$ragResults"
+            ))
+        }
+
+        return messages
+    }
+
     private suspend fun performRAGSearch(query: String): String {
         return try {
             val ragTool = toolRegistry.getTool("rag_search")
@@ -208,53 +430,6 @@ class OrchestratorService(
         }
     }
 
-    private fun buildDeepSeekRequest(messages: List<Message>): DeepSeekChatRequest {
-        val model = if (properties.useReasoningModel) {
-            "deepseek-reasoner"
-        } else {
-            "deepseek-chat"
-        }
-
-        return DeepSeekChatRequest(
-            model = model,
-            messages = messages.map { it.toDeepSeekMessage() },
-            temperature = properties.temperature,
-            maxTokens = properties.maxTokens,
-            tools = toolRegistry.getToolDefinitions()
-        )
-    }
-
-    private fun Message.toDeepSeekMessage(): DeepSeekMessage {
-        return DeepSeekMessage(
-            role = this.role.name.lowercase(),
-            content = this.content,
-            toolCallId = this.toolCallId,
-            toolCalls = this.toolCalls?.map { it.toDeepSeekToolCall() }
-        )
-    }
-
-    private fun ToolCall.toDeepSeekToolCall(): DeepSeekToolCall {
-        return DeepSeekToolCall(
-            id = this.id,
-            type = this.type,
-            function = DeepSeekFunctionCall(
-                name = this.function.name,
-                arguments = this.function.arguments
-            )
-        )
-    }
-
-    private fun DeepSeekToolCall.toToolCall(): ToolCall {
-        return ToolCall(
-            id = this.id,
-            type = this.type,
-            function = FunctionCall(
-                name = this.function.name,
-                arguments = this.function.arguments
-            )
-        )
-    }
-
     private fun parseArguments(json: String): Map<String, Any> {
         return try {
             objectMapper.readValue(json, object : TypeReference<Map<String, Any>>() {})
@@ -264,3 +439,13 @@ class OrchestratorService(
         }
     }
 }
+
+/**
+ * Synchronous result for non-streaming operations.
+ */
+data class SyncResult(
+    val content: String,
+    val iterationsUsed: Int,
+    val tokensUsed: Int,
+    val conversationId: String
+)
