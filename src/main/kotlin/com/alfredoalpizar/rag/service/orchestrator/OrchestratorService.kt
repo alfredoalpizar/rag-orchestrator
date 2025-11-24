@@ -19,7 +19,7 @@ import org.springframework.stereotype.Service
  *
  * Uses the Strategy Pattern to support multiple model implementations:
  * - DeepSeek (single model)
- * - Qwen (thinking, instruct, or hybrid staged)
+ * - Qwen (thinking or instruct)
  * - Future: Claude, GPT-4, etc.
  *
  * Provides both streaming (SSE for chat UI) and synchronous (internal services) APIs.

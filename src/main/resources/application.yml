@@ -64,8 +64,8 @@ loop:
   max-tokens: 4096
   temperature: 0.7
 
-  # Model Strategy Selection (NEW!)
-  # Options: deepseek_single | qwen_single_thinking | qwen_single_instruct | qwen_hybrid_staged
+  # Model Strategy Selection
+  # Options: deepseek_single | qwen_single_thinking | qwen_single_instruct
   model-strategy: deepseek_single  # Change this to switch strategies
 
   # Legacy: Use DeepSeek reasoner vs chat (only applies to deepseek_single strategy)

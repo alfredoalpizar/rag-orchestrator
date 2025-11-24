@@ -8,7 +8,7 @@ import com.alfredoalpizar.rag.config.LoopProperties.ModelStrategy
  */
 data class StrategyMetadata(
     /**
-     * Human-readable strategy name (e.g., "DeepSeek Single", "Qwen Hybrid Staged")
+     * Human-readable strategy name (e.g., "DeepSeek Single", "Qwen Single Thinking")
      */
     val name: String,
 
