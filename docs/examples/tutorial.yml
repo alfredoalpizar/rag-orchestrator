@@ -1,0 +1,523 @@
+# Example: Tutorial/Learning Guide
+# Use this template for educational content and step-by-step learning paths
+
+metadata:
+  # Required fields
+  id: "tutorial_rest_api_basics"
+  title: "Building Your First REST API"
+  category: "tutorial"
+  version: "1.0.0"
+  status: "published"
+
+  # Ownership
+  owner: "developer-education-team"
+  lastUpdated: "2025-11-24"
+
+  # Organization
+  organizationPath: "learning.backend.rest_api"
+  tags:
+    - "tutorial"
+    - "rest api"
+    - "nodejs"
+    - "express"
+    - "beginner"
+
+  # Access control
+  accessRoles:
+    - "developer"
+    - "student"
+    - "intern"
+  platforms:
+    - "web"
+
+  # Optional: Tutorial-specific fields
+  difficulty: "beginner"
+  estimatedTime: "60 minutes"
+  prerequisites:
+    - "Basic JavaScript knowledge"
+    - "Node.js installed"
+    - "Familiarity with command line"
+  learningObjectives:
+    - "Understand REST API principles"
+    - "Build a simple CRUD API"
+    - "Test API endpoints"
+    - "Handle errors properly"
+
+content:
+  summary: "Learn to build a RESTful API from scratch using Node.js and Express"
+
+  # Body: Use H2 for each lesson/module
+  body: |
+    ## Introduction
+
+    Welcome! In this tutorial, you'll build a complete REST API for managing a todo list.
+    By the end, you'll understand HTTP methods, routing, middleware, and error handling.
+
+    **What You'll Build:**
+    A todo list API with endpoints to:
+    - Create new todos
+    - List all todos
+    - Get a single todo
+    - Update a todo
+    - Delete a todo
+
+    **Tech Stack:**
+    - Node.js (JavaScript runtime)
+    - Express (web framework)
+    - In-memory data storage (for simplicity)
+
+    Let's get started! 🚀
+
+    ## Lesson 1: Setting Up Your Project
+
+    First, let's create a new Node.js project.
+
+    **1.1 Create Project Directory**
+    ```bash
+    mkdir todo-api
+    cd todo-api
+    ```
+
+    **1.2 Initialize npm**
+    ```bash
+    npm init -y
+    ```
+
+    This creates `package.json` with default settings.
+
+    **1.3 Install Express**
+    ```bash
+    npm install express
+    ```
+
+    **1.4 Create Server File**
+
+    Create `server.js`:
+    ```javascript
+    const express = require('express');
+    const app = express();
+    const PORT = 3000;
+
+    // Middleware to parse JSON
+    app.use(express.json());
+
+    // Test route
+    app.get('/', (req, res) => {
+      res.json({ message: 'Welcome to Todo API!' });
+    });
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+    ```
+
+    **1.5 Test Your Server**
+    ```bash
+    node server.js
+    ```
+
+    Visit `http://localhost:3000` in your browser. You should see:
+    ```json
+    {"message": "Welcome to Todo API!"}
+    ```
+
+    ✅ **Checkpoint:** Server is running and responding!
+
+    ## Lesson 2: Understanding REST Principles
+
+    REST (Representational State Transfer) uses HTTP methods to perform operations:
+
+    | HTTP Method | Purpose | Example |
+    |-------------|---------|---------|
+    | GET | Retrieve data | Get all todos |
+    | POST | Create new data | Create a todo |
+    | PUT | Update existing data | Update a todo |
+    | DELETE | Remove data | Delete a todo |
+
+    **RESTful URL Structure:**
+    ```
+    GET    /todos          → Get all todos
+    POST   /todos          → Create a todo
+    GET    /todos/:id      → Get specific todo
+    PUT    /todos/:id      → Update specific todo
+    DELETE /todos/:id      → Delete specific todo
+    ```
+
+    **Key Principles:**
+    1. **Stateless:** Each request is independent
+    2. **Resource-based:** URLs represent resources (todos)
+    3. **HTTP methods:** Use correct method for each operation
+    4. **JSON:** Standard data format for APIs
+
+    ## Lesson 3: Creating Your Data Model
+
+    For this tutorial, we'll use an in-memory array (in production, use a database).
+
+    **3.1 Add Data Storage**
+
+    Update `server.js`:
+    ```javascript
+    // In-memory data store
+    let todos = [
+      { id: 1, title: 'Learn REST APIs', completed: false },
+      { id: 2, title: 'Build a project', completed: false }
+    ];
+
+    let nextId = 3;
+    ```
+
+    **3.2 Helper Functions**
+    ```javascript
+    // Find todo by ID
+    function findTodo(id) {
+      return todos.find(todo => todo.id === parseInt(id));
+    }
+
+    // Validate todo data
+    function validateTodo(data) {
+      if (!data.title || data.title.trim() === '') {
+        return { valid: false, error: 'Title is required' };
+      }
+      return { valid: true };
+    }
+    ```
+
+    ## Lesson 4: Implementing GET Endpoints
+
+    Let's create endpoints to retrieve todos.
+
+    **4.1 Get All Todos**
+    ```javascript
+    // GET /todos - Get all todos
+    app.get('/todos', (req, res) => {
+      res.json(todos);
+    });
+    ```
+
+    **Test it:**
+    ```bash
+    curl http://localhost:3000/todos
+    ```
+
+    **4.2 Get Single Todo**
+    ```javascript
+    // GET /todos/:id - Get specific todo
+    app.get('/todos/:id', (req, res) => {
+      const todo = findTodo(req.params.id);
+
+      if (!todo) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      res.json(todo);
+    });
+    ```
+
+    **Test it:**
+    ```bash
+    curl http://localhost:3000/todos/1
+    curl http://localhost:3000/todos/999  # Should return 404
+    ```
+
+    **4.3 Filter Todos (Query Parameters)**
+    ```javascript
+    // GET /todos?completed=true - Filter by completion status
+    app.get('/todos', (req, res) => {
+      let result = todos;
+
+      // Filter by completion status if provided
+      if (req.query.completed !== undefined) {
+        const completed = req.query.completed === 'true';
+        result = todos.filter(todo => todo.completed === completed);
+      }
+
+      res.json(result);
+    });
+    ```
+
+    **Test it:**
+    ```bash
+    curl http://localhost:3000/todos?completed=false
+    ```
+
+    ## Lesson 5: Implementing POST (Create)
+
+    Now let's create new todos.
+
+    **5.1 Create Todo Endpoint**
+    ```javascript
+    // POST /todos - Create new todo
+    app.post('/todos', (req, res) => {
+      // Validate input
+      const validation = validateTodo(req.body);
+      if (!validation.valid) {
+        return res.status(400).json({ error: validation.error });
+      }
+
+      // Create new todo
+      const newTodo = {
+        id: nextId++,
+        title: req.body.title,
+        completed: req.body.completed || false
+      };
+
+      todos.push(newTodo);
+
+      // Return created todo with 201 status
+      res.status(201).json(newTodo);
+    });
+    ```
+
+    **Test it:**
+    ```bash
+    curl -X POST http://localhost:3000/todos \
+      -H "Content-Type: application/json" \
+      -d '{"title": "Learn Express", "completed": false}'
+    ```
+
+    Expected response:
+    ```json
+    {
+      "id": 3,
+      "title": "Learn Express",
+      "completed": false
+    }
+    ```
+
+    ## Lesson 6: Implementing PUT (Update)
+
+    Update existing todos.
+
+    **6.1 Update Todo Endpoint**
+    ```javascript
+    // PUT /todos/:id - Update todo
+    app.put('/todos/:id', (req, res) => {
+      const todo = findTodo(req.params.id);
+
+      if (!todo) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      // Validate if title is being updated
+      if (req.body.title !== undefined) {
+        const validation = validateTodo(req.body);
+        if (!validation.valid) {
+          return res.status(400).json({ error: validation.error });
+        }
+        todo.title = req.body.title;
+      }
+
+      // Update completed status if provided
+      if (req.body.completed !== undefined) {
+        todo.completed = req.body.completed;
+      }
+
+      res.json(todo);
+    });
+    ```
+
+    **Test it:**
+    ```bash
+    curl -X PUT http://localhost:3000/todos/1 \
+      -H "Content-Type: application/json" \
+      -d '{"completed": true}'
+    ```
+
+    ## Lesson 7: Implementing DELETE
+
+    Delete todos.
+
+    **7.1 Delete Todo Endpoint**
+    ```javascript
+    // DELETE /todos/:id - Delete todo
+    app.delete('/todos/:id', (req, res) => {
+      const index = todos.findIndex(todo => todo.id === parseInt(req.params.id));
+
+      if (index === -1) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      const deleted = todos.splice(index, 1)[0];
+      res.json({ message: 'Todo deleted', todo: deleted });
+    });
+    ```
+
+    **Test it:**
+    ```bash
+    curl -X DELETE http://localhost:3000/todos/1
+    ```
+
+    ## Lesson 8: Error Handling
+
+    Add proper error handling.
+
+    **8.1 Global Error Handler**
+    ```javascript
+    // Error handling middleware (add at the end)
+    app.use((err, req, res, next) => {
+      console.error(err.stack);
+      res.status(500).json({ error: 'Something went wrong!' });
+    });
+
+    // 404 handler for unknown routes
+    app.use((req, res) => {
+      res.status(404).json({ error: 'Route not found' });
+    });
+    ```
+
+    **8.2 Try-Catch in Routes**
+    ```javascript
+    app.get('/todos/:id', (req, res, next) => {
+      try {
+        const todo = findTodo(req.params.id);
+        if (!todo) {
+          return res.status(404).json({ error: 'Todo not found' });
+        }
+        res.json(todo);
+      } catch (error) {
+        next(error);  // Pass to error handler
+      }
+    });
+    ```
+
+    ## Next Steps
+
+    Congratulations! You've built a complete REST API. 🎉
+
+    **To Continue Learning:**
+    1. Add a database (MongoDB, PostgreSQL)
+    2. Implement authentication (JWT)
+    3. Add input validation (express-validator)
+    4. Write tests (Jest, Supertest)
+    5. Deploy to production (Heroku, Railway, Render)
+
+    **Recommended Resources:**
+    - Express.js documentation
+    - REST API design best practices
+    - Database integration tutorials
+
+    ## Complete Code
+
+    Final `server.js`:
+    ```javascript
+    const express = require('express');
+    const app = express();
+    const PORT = 3000;
+
+    // Middleware
+    app.use(express.json());
+
+    // Data store
+    let todos = [
+      { id: 1, title: 'Learn REST APIs', completed: false },
+      { id: 2, title: 'Build a project', completed: false }
+    ];
+    let nextId = 3;
+
+    // Helper functions
+    function findTodo(id) {
+      return todos.find(todo => todo.id === parseInt(id));
+    }
+
+    function validateTodo(data) {
+      if (!data.title || data.title.trim() === '') {
+        return { valid: false, error: 'Title is required' };
+      }
+      return { valid: true };
+    }
+
+    // Routes
+    app.get('/', (req, res) => {
+      res.json({ message: 'Welcome to Todo API!' });
+    });
+
+    app.get('/todos', (req, res) => {
+      let result = todos;
+      if (req.query.completed !== undefined) {
+        const completed = req.query.completed === 'true';
+        result = todos.filter(todo => todo.completed === completed);
+      }
+      res.json(result);
+    });
+
+    app.get('/todos/:id', (req, res) => {
+      const todo = findTodo(req.params.id);
+      if (!todo) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+      res.json(todo);
+    });
+
+    app.post('/todos', (req, res) => {
+      const validation = validateTodo(req.body);
+      if (!validation.valid) {
+        return res.status(400).json({ error: validation.error });
+      }
+
+      const newTodo = {
+        id: nextId++,
+        title: req.body.title,
+        completed: req.body.completed || false
+      };
+      todos.push(newTodo);
+      res.status(201).json(newTodo);
+    });
+
+    app.put('/todos/:id', (req, res) => {
+      const todo = findTodo(req.params.id);
+      if (!todo) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      if (req.body.title !== undefined) {
+        const validation = validateTodo(req.body);
+        if (!validation.valid) {
+          return res.status(400).json({ error: validation.error });
+        }
+        todo.title = req.body.title;
+      }
+
+      if (req.body.completed !== undefined) {
+        todo.completed = req.body.completed;
+      }
+
+      res.json(todo);
+    });
+
+    app.delete('/todos/:id', (req, res) => {
+      const index = todos.findIndex(todo => todo.id === parseInt(req.params.id));
+      if (index === -1) {
+        return res.status(404).json({ error: 'Todo not found' });
+      }
+
+      const deleted = todos.splice(index, 1)[0];
+      res.json({ message: 'Todo deleted', todo: deleted });
+    });
+
+    // Error handlers
+    app.use((err, req, res, next) => {
+      console.error(err.stack);
+      res.status(500).json({ error: 'Something went wrong!' });
+    });
+
+    app.use((req, res) => {
+      res.status(404).json({ error: 'Route not found' });
+    });
+
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+    ```
+
+# Chunking behavior:
+# This document will be chunked by H2 sections (9 lessons + intro):
+#   1. Introduction
+#   2. Lesson 1: Setting Up
+#   3. Lesson 2: REST Principles
+#   4-9. Remaining lessons
+# Each chunk will have:
+#   - chunk_type: tutorial_lesson
+#   - lesson_number: 1-8
+#   - chunk_heading: Lesson title

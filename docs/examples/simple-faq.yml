@@ -1,0 +1,102 @@
+# Example: Simple FAQ Document
+# Use this template for question-and-answer knowledge bases
+
+metadata:
+  # Required fields
+  id: "faq_example_001"
+  title: "Getting Started FAQ"
+  category: "faq"
+  version: "1.0.0"
+  status: "published"
+
+  # Ownership
+  owner: "support-team"
+  lastUpdated: "2025-11-24"
+
+  # Organization
+  organizationPath: "support.getting_started"
+  tags:
+    - "getting started"
+    - "basics"
+    - "beginner"
+
+  # Access control
+  accessRoles:
+    - "customer"
+    - "support_agent"
+    - "admin"
+  platforms:
+    - "web"
+    - "mobile"
+
+  # Optional: Custom fields for FAQs
+  difficulty: "easy"
+  estimatedReadTime: "3 minutes"
+  language: "en"
+
+content:
+  summary: "Common questions about getting started with our platform"
+
+  # Body: Each H2 is a question
+  body: |
+    ## What is this platform?
+
+    Our platform is a comprehensive solution for managing your projects and teams.
+    It provides tools for collaboration, task tracking, and resource management.
+
+    Key features:
+    - Real-time collaboration
+    - Task management
+    - Team analytics
+    - Integration with popular tools
+
+    ## How do I create an account?
+
+    Creating an account is easy:
+
+    1. Click the "Sign Up" button on the homepage
+    2. Enter your email address
+    3. Choose a strong password
+    4. Verify your email (check your inbox)
+    5. Complete your profile
+
+    **Note:** You can also sign up using Google or GitHub.
+
+    ## Is there a mobile app?
+
+    Yes! We have mobile apps for both iOS and Android:
+
+    - **iOS:** Available on the App Store
+    - **Android:** Available on Google Play
+
+    The mobile apps include most features from the web version, optimized for
+    on-the-go access.
+
+    ## What are the pricing plans?
+
+    We offer three pricing tiers:
+
+    - **Free:** For individuals and small teams (up to 5 members)
+    - **Professional:** $10/user/month for growing teams
+    - **Enterprise:** Custom pricing for large organizations
+
+    All plans include a 14-day free trial. No credit card required.
+
+    ## How do I reset my password?
+
+    If you forgot your password:
+
+    1. Go to the login page
+    2. Click "Forgot Password?"
+    3. Enter your email address
+    4. Check your email for a reset link
+    5. Click the link and create a new password
+
+    If you don't receive the email within 5 minutes, check your spam folder.
+
+# Chunking behavior:
+# This document will be chunked into 5 chunks (one per Q&A pair)
+# Each chunk will have:
+#   - id: faq_example_001::qa_1, faq_example_001::qa_2, etc.
+#   - chunk_type: faq_qa
+#   - question: "What is this platform?"
