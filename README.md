@@ -1,384 +1,190 @@
 # RAG Orchestrator
 
-An intelligent RAG (Retrieval-Augmented Generation) service with tool-calling loop orchestration, powered by DeepSeek and ChromaDB.
-
-**Status**: Core implementation complete (v0.0.1-SNAPSHOT) - Ready for testing and deployment
+An intelligent RAG (Retrieval-Augmented Generation) service with tool-calling loop orchestration, multi-model support, and ChromaDB integration.
 
 ## Features
 
 - **Tool-Calling Loop**: Iterative reasoning with automatic tool selection (up to 10 iterations)
+- **Multi-Model Support**: Pluggable model strategies for DeepSeek and Qwen models
 - **RAG Integration**: Hybrid approach with initial + tool-based retrieval from ChromaDB
 - **Conversation Management**: Context-aware multi-turn dialogues with SQL persistence
 - **Streaming Support**: Real-time SSE streaming of responses and tool executions
-- **Extensible Tools**: Easy to add custom tools/functions via Spring components
-- **Multiple Strategies**: Different output formats via finalizer strategies
-- **Audit Ready**: SQL-based conversation tracking for compliance with full history
+- **Extensible Tools**: Easy to add custom tools via Spring components
+- **Audit Built-In**: SQL-based conversation tracking with full message history
 - **Rolling Window Context**: Token-efficient context management with configurable window size
-
-## Architecture
-
-### Storage Strategy (Phased Approach)
-
-**Phase 1 (Current - POC)**:
-- SQL (Sybase ASE) for conversation metadata and messages
-- In-memory mode available for testing
-- Fast queries by caller_id, user_id, timestamps
-- Perfect for audits and compliance
-
-**Phase 2 (Future - Scale)**:
-- Add Redis cache for active conversations (< 1 hour old)
-- Reduces latency to sub-millisecond for hot data
-
-**Phase 3 (Future - Archive)**:
-- S3 for long-term storage (> 90 days old)
-- Lifecycle policies for cost optimization
 
 ## Quick Start
 
 ### Prerequisites
-- **JDK 21** (tested with OpenJDK 21)
-- **Gradle 8.10+** (wrapper included)
-- **Docker** (for ChromaDB)
-- **Database** (optional): Sybase ASE or use in-memory mode for testing
+- JDK 21
+- Gradle 8.10+ (wrapper included)
+- Docker (for ChromaDB)
 
 ### Setup
 
-1. **Clone the repository**
 ```bash
+# Clone and enter directory
 git clone https://github.com/alfredoalpizar/rag-orchestrator.git
 cd rag-orchestrator
-```
 
-2. **Create `.env` file**
-```bash
+# Create .env file
 cp .env.example .env
-```
+# Edit .env with your API key: DEEPSEEK_API_KEY=sk-your-key
 
-Edit `.env` with your configuration:
-```bash
-# Required
-DEEPSEEK_API_KEY=sk-your-api-key-here
-
-# Optional (use in-memory mode for quick testing)
-CONVERSATION_STORAGE_MODE=in-memory
-
-# For production (SQL mode)
-# DB_URL=jdbc:sybase:Tds:localhost:5000/your_database
-# DB_USERNAME=your_username
-# DB_PASSWORD=your_password
-```
-
-3. **Start ChromaDB**
-```bash
+# Start ChromaDB
 docker run -d -p 8000:8000 chromadb/chroma
-```
 
-4. **Run database migrations** (skip if using in-memory mode)
-```bash
-./gradlew flywayMigrate
-```
-
-5. **Build the project**
-```bash
+# Build and run
 ./gradlew build -x test
-```
-
-6. **Run the service**
-```bash
 ./gradlew bootRun
 ```
 
-7. **Test it**
-```bash
-# Health check
-curl http://localhost:8080/api/v1/ping
+## Model Strategies
 
-# Create a conversation
-curl -X POST http://localhost:8080/api/v1/chat/conversations \
-  -H "Content-Type: application/json" \
-  -d '{
-    "callerId": "demo@example.com",
-    "initialMessage": "Hello!"
-  }'
+The orchestrator supports multiple LLM providers through a pluggable strategy pattern. Configure via `loop.model-strategy` in `application.yml`:
+
+| Strategy | Config Value | Model | Best For |
+|----------|-------------|-------|----------|
+| DeepSeek Single | `deepseek_single` | deepseek-chat | General purpose, fast responses |
+| Qwen Thinking | `qwen_single_thinking` | qwen-max | Complex reasoning with traces |
+| Qwen Instruct | `qwen_single_instruct` | qwen-plus | Fast instruction-following |
+
+```yaml
+# application.yml
+loop:
+  model-strategy: deepseek_single  # or qwen_single_thinking, qwen_single_instruct
 ```
 
-**Expected response:**
+Each strategy requires its own API key:
+- DeepSeek: `DEEPSEEK_API_KEY`
+- Qwen: `QWEN_API_KEY`
+
+## API Endpoints
+
+### Health Check
+
+```bash
+GET /api/v1/ping
+```
+```json
+{"status": "ok", "service": "rag-orchestrator", "timestamp": "2025-01-15T10:00:00Z"}
+```
+
+### Create Conversation
+
+```bash
+POST /api/v1/chat/conversations
+Content-Type: application/json
+
+{"callerId": "user@example.com", "userId": "user123"}
+```
 ```json
 {
-  "conversationId": "123e4567-e89b-12d3-a456-426614174000",
-  "callerId": "demo@example.com",
+  "conversationId": "550e8400-e29b-41d4-a716-446655440000",
+  "callerId": "user@example.com",
   "status": "ACTIVE",
   "messageCount": 0,
-  "toolCallsCount": 0,
-  "totalTokens": 0,
-  "createdAt": "2025-11-23T10:00:00Z",
-  "updatedAt": "2025-11-23T10:00:00Z"
+  "createdAt": "2025-01-15T10:00:00Z"
 }
 ```
 
-## Storage Modes
+### Send Message (SSE Streaming)
 
-### SQL Mode (Recommended for Production)
-- Best for: Production, audit trails, compliance
-- Queries by caller_id, user_id, timestamps
-- Automatic cleanup of old conversations
-- Integration with existing BI tools
-- Full conversation history retention
+```bash
+POST /api/v1/chat/conversations/{conversationId}/messages/stream
+Content-Type: application/json
+Accept: text/event-stream
 
-### In-Memory Mode (Quick Testing)
-- Best for: Development, testing, demos
-- Fast and simple
-- No database setup required
-- Data lost on restart
+{"message": "What is RAG?"}
+```
+
+**SSE Response Stream:**
+```
+event: StatusUpdate
+data: {"status": "Loading conversation...", "timestamp": "..."}
+
+event: StatusUpdate
+data: {"status": "Performing initial knowledge search...", "timestamp": "..."}
+
+event: ToolCallStart
+data: {"toolName": "rag_search", "arguments": {"query": "RAG"}, "timestamp": "..."}
+
+event: ToolCallResult
+data: {"toolName": "rag_search", "result": "...", "success": true, "timestamp": "..."}
+
+event: ResponseChunk
+data: {"content": "RAG stands for Retrieval-Augmented Generation...", "timestamp": "..."}
+
+event: Completed
+data: {"iterationsUsed": 2, "tokensUsed": 1523, "timestamp": "..."}
+```
+
+### Get Conversation
+
+```bash
+GET /api/v1/chat/conversations/{conversationId}
+```
+
+### List Conversations
+
+```bash
+GET /api/v1/chat/conversations?callerId=user@example.com&limit=10
+```
+
+### List Available Tools
+
+```bash
+GET /api/v1/agent/tools
+```
+```json
+[
+  {"name": "rag_search", "description": "Search the knowledge base", "parameters": {...}}
+]
+```
 
 ## Configuration
 
-Edit `application.yml` or use environment variables:
+Key settings in `application.yml`:
 
 ```yaml
-conversation:
-  storage-mode: sql  # or 'in-memory'
-  rolling-window-size: 20  # Keep last N messages in context
-  ttl-hours: 720  # 30 days before archival
-
 loop:
-  max-iterations: 10  # Maximum tool-calling iterations
-  use-reasoning-model: false  # Use deepseek-reasoner vs deepseek-chat
+  max-iterations: 10
+  model-strategy: deepseek_single
+  streaming:
+    show-tool-calls: true
+    show-reasoning-traces: false
+
+conversation:
+  storage-mode: in-memory  # or sql
+  rolling-window-size: 20
 
 deepseek:
-  api-key: ${DEEPSEEK_API_KEY}
+  api:
+    api-key: ${DEEPSEEK_API_KEY}
+
+qwen:
+  api:
+    api-key: ${QWEN_API_KEY}
 
 chromadb:
   base-url: http://localhost:8000
   collection-name: knowledge_base
 ```
 
-## API Examples
+## Storage Modes
 
-### Complete Conversation Flow
-
-```bash
-# 1. Create a conversation
-CONV_ID=$(curl -s -X POST http://localhost:8080/api/v1/chat/conversations \
-  -H "Content-Type: application/json" \
-  -d '{
-    "callerId": "demo@example.com",
-    "userId": "user123"
-  }' | jq -r '.conversationId')
-
-echo "Created conversation: $CONV_ID"
-
-# 2. Send a message with streaming
-curl -N -X POST http://localhost:8080/api/v1/chat/conversations/$CONV_ID/messages/stream \
-  -H "Content-Type: application/json" \
-  -d '{"message": "What is Retrieval-Augmented Generation?"}' \
-  --no-buffer
-
-# 3. Get conversation details
-curl http://localhost:8080/api/v1/chat/conversations/$CONV_ID | jq
-
-# 4. List all conversations for a caller
-curl "http://localhost:8080/api/v1/chat/conversations?callerId=demo@example.com&limit=10" | jq
-```
-
-### Streaming Events
-
-When you send a message, you'll receive Server-Sent Events (SSE) like:
-
-```
-event: StatusUpdate
-data: {"conversationId":"...","status":"Loading conversation...","timestamp":"..."}
-
-event: StatusUpdate
-data: {"conversationId":"...","status":"Performing initial knowledge search...","timestamp":"..."}
-
-event: ToolCallStart
-data: {"conversationId":"...","toolName":"rag_search","toolCallId":"call_123","arguments":{...},"timestamp":"..."}
-
-event: ToolCallResult
-data: {"conversationId":"...","toolName":"rag_search","result":"Document content...","success":true,"timestamp":"..."}
-
-event: ResponseChunk
-data: {"conversationId":"...","content":"Based on the knowledge base, RAG is...","timestamp":"..."}
-
-event: Completed
-data: {"conversationId":"...","iterationsUsed":2,"tokensUsed":1523,"timestamp":"..."}
-```
-
-### List Available Tools
-
-```bash
-curl http://localhost:8080/api/v1/agent/tools | jq
-```
-
-### Audit Queries (SQL Mode)
-
-```sql
--- Find all conversations by caller in last 7 days
-SELECT * FROM conversations
-WHERE caller_id = 'john.doe@company.com'
-AND created_at > DATEADD(day, -7, GETDATE())
-ORDER BY created_at DESC;
-
--- Get conversation message history
-SELECT role, content, created_at
-FROM conversation_messages
-WHERE conversation_id = 'your-conversation-id'
-ORDER BY created_at ASC;
-
--- Statistics by user
-SELECT
-    caller_id,
-    COUNT(*) as conversation_count,
-    SUM(message_count) as total_messages,
-    SUM(tool_calls_count) as total_tool_calls,
-    SUM(total_tokens) as total_tokens
-FROM conversations
-WHERE created_at > DATEADD(day, -30, GETDATE())
-GROUP BY caller_id
-ORDER BY conversation_count DESC;
-```
+- **In-Memory**: Fast development/testing, data lost on restart
+- **SQL**: Production-ready with full audit trail (Sybase ASE)
 
 ## Documentation
 
-### Getting Started
-- [PROJECT_BOOTSTRAP.md](PROJECT_BOOTSTRAP.md) - Complete project setup and initialization guide
-- [CLAUDE.md](CLAUDE.md) - AI assistant guidance for development
-
-### Implementation Guides
-- [IMPLEMENTATION_SPEC.md](IMPLEMENTATION_SPEC.md) - Technical architecture and complete implementation specification
-- [API_SPEC.md](API_SPEC.md) - REST API reference with examples and use cases
-- [TOOLS_GUIDE.md](TOOLS_GUIDE.md) - Building custom tools for the orchestrator
-- [CONTEXT_MANAGEMENT_GUIDE.md](CONTEXT_MANAGEMENT_GUIDE.md) - Conversation context and storage strategies
-- [STREAMING_GUIDE.md](STREAMING_GUIDE.md) - SSE streaming implementation details
-
-## Project Status
-
-### Completed (v0.0.1-SNAPSHOT)
-
-**Core Architecture**
-- Spring Boot 3.2.1 + Kotlin + Gradle setup
-- Reactive WebFlux for non-blocking I/O
-- JPA repositories with Flyway migrations
-- Configuration properties with environment variable support
-
-**External Integrations**
-- DeepSeek client (chat API with retry logic)
-- ChromaDB client (vector search for RAG)
-- Sybase ASE database support
-
-**Service Layer**
-- Tool-calling loop orchestrator (max 10 iterations)
-- Context manager with rolling window (configurable)
-- RAG tool for knowledge base retrieval
-- Tool registry with auto-discovery
-- Finalizer strategies (direct, structured)
-
-**API Layer**
-- REST endpoints for conversation management
-- Server-Sent Events (SSE) streaming
-- Error handling and validation
-- Health check endpoints
-
-**Data Management**
-- SQL-based conversation persistence
-- In-memory mode for testing
-- Rolling window context (prevents unbounded growth)
-- Token estimation and tracking
-
-### In Progress / Known Issues
-
-- Test suite needs enhancement (H2 + Flyway compatibility issue)
-- Word-by-word streaming (currently sends complete responses)
-- Context compression/summarization strategies
-- Additional custom tools
-
-### Roadmap
-
-**Phase 2 (Performance)**
-- Redis cache for active conversations
-- Improved token counting (tiktoken integration)
-- Context compression strategies
-- More custom tools (weather, calculator, etc.)
-
-**Phase 3 (Scale)**
-- S3 archival for old conversations
-- Background cleanup jobs
-- Rate limiting and quotas
-- Multi-model support
-
-**Phase 4 (Production)**
-- Authentication and authorization
-- Comprehensive test suite
-- Monitoring and metrics (Prometheus)
-- API documentation (Swagger/OpenAPI)
-- Docker compose for local development
-
-## Troubleshooting
-
-### Build Issues
-```bash
-# Clean build
-./gradlew clean build --refresh-dependencies
-
-# Skip tests if H2 compatibility issue persists
-./gradlew build -x test
-```
-
-### Port Already in Use
-```bash
-# Change port via environment variable
-export SERVER_PORT=8081
-./gradlew bootRun
-```
-
-### ChromaDB Connection Failed
-```bash
-# Check if ChromaDB is running
-curl http://localhost:8000/api/v1/heartbeat
-
-# Start ChromaDB if needed
-docker run -d -p 8000:8000 chromadb/chroma
-```
-
-### Database Issues (SQL Mode)
-```bash
-# Use in-memory mode for testing
-export CONVERSATION_STORAGE_MODE=in-memory
-./gradlew bootRun
-
-# Or check Flyway migration status
-./gradlew flywayInfo
-
-# Repair migration state if needed
-./gradlew flywayRepair
-```
-
-### DeepSeek API Issues
-```bash
-# Test API key
-curl https://api.deepseek.com/v1/models \
-  -H "Authorization: Bearer $DEEPSEEK_API_KEY"
-
-# Check logs for detailed error messages
-./gradlew bootRun | grep ERROR
-```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+- [API_SPEC.md](API_SPEC.md) - Complete REST API reference
+- [IMPLEMENTATION_SPEC.md](IMPLEMENTATION_SPEC.md) - Technical architecture
+- [TOOLS_GUIDE.md](TOOLS_GUIDE.md) - Building custom tools
+- [CONTEXT_MANAGEMENT_GUIDE.md](CONTEXT_MANAGEMENT_GUIDE.md) - Conversation context strategies
+- [STREAMING_GUIDE.md](STREAMING_GUIDE.md) - SSE streaming details
+- [STRATEGY_IMPLEMENTATION_GUIDE.md](STRATEGY_IMPLEMENTATION_GUIDE.md) - Adding new model strategies
 
 ## License
 
 MIT License - see [LICENSE](LICENSE) for details.
-
-## Support
-
-For questions or issues:
-- Open an issue on GitHub
-- Check the documentation in the project root
-- Review the guides: `IMPLEMENTATION_SPEC.md`, `API_SPEC.md`, etc.
