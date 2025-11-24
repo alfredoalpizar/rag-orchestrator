@@ -49,4 +49,48 @@ sealed class StreamEvent {
         val details: String? = null,
         override val timestamp: Instant = Instant.now()
     ) : StreamEvent()
+
+    // NEW: Show reasoning traces from thinking models
+    data class ReasoningTrace(
+        override val conversationId: String,
+        val content: String,
+        val stage: ReasoningStage,
+        override val timestamp: Instant = Instant.now()
+    ) : StreamEvent()
+
+    // NEW: Show execution plan generated during planning stage
+    data class ExecutionPlan(
+        override val conversationId: String,
+        val plannedTools: List<PlannedTool>,
+        val reasoning: String,
+        override val timestamp: Instant = Instant.now()
+    ) : StreamEvent()
+
+    // NEW: Stage transition notifications
+    data class StageTransition(
+        override val conversationId: String,
+        val fromStage: Stage,
+        val toStage: Stage,
+        val details: String? = null,
+        override val timestamp: Instant = Instant.now()
+    ) : StreamEvent()
 }
+
+enum class ReasoningStage {
+    PLANNING,
+    SYNTHESIS
+}
+
+enum class Stage {
+    LOADING,
+    PLANNING,
+    EXECUTION,
+    SYNTHESIS,
+    COMPLETED
+}
+
+data class PlannedTool(
+    val name: String,
+    val purpose: String,
+    val arguments: Map<String, Any>
+)
