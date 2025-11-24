@@ -57,7 +57,12 @@ data class ProviderStreamChunk(
     /**
      * Role (usually 'assistant')
      */
-    val role: String?
+    val role: String?,
+
+    /**
+     * Tokens used (typically only present in final chunk)
+     */
+    val tokensUsed: Int? = null
 )
 
 /**
