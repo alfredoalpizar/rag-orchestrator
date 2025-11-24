@@ -48,8 +48,7 @@ Each strategy is **completely isolated**:
 strategy/impl/
 ├── DeepSeekSingleStrategy.kt      (153 lines)
 ├── QwenSingleInstructStrategy.kt  (177 lines)
-├── QwenSingleThinkingStrategy.kt  (214 lines)
-└── QwenHybridStagedStrategy.kt    (189 lines)
+└── QwenSingleThinkingStrategy.kt  (214 lines)
 ```
 
 - No shared state between strategies
@@ -299,7 +298,6 @@ enum class ModelStrategy {
     DEEPSEEK_SINGLE,
     QWEN_SINGLE_THINKING,
     QWEN_SINGLE_INSTRUCT,
-    QWEN_HYBRID_STAGED,
     CLAUDE_SINGLE  // ← Add here
 }
 ```
@@ -372,15 +370,6 @@ loop:
 ```
 - Test complex reasoning tasks
 - Evaluate reasoning quality
-- **Zero code changes**
-
-**Day 4: Try Hybrid Approach**
-```yaml
-loop:
-  model-strategy: qwen_hybrid_staged
-```
-- Best of both worlds?
-- Measure overhead
 - **Zero code changes**
 
 ### **Rapid Iteration Benefits**
@@ -521,10 +510,9 @@ class OrchestratorService(
 
 ## Next Steps
 
-1. **Read**: [HYBRID_STRATEGY_GUIDE.md](HYBRID_STRATEGY_GUIDE.md) for advanced multi-stage strategies
-2. **Experiment**: Try all 4 existing strategies with your workload
-3. **Measure**: Collect metrics (latency, tokens, quality) for each
-4. **Optimize**: Pick the best strategy for your use case
-5. **Extend**: Add your own custom strategies as needed
+1. **Experiment**: Try all 3 existing strategies with your workload
+2. **Measure**: Collect metrics (latency, tokens, quality) for each
+3. **Optimize**: Pick the best strategy for your use case
+4. **Extend**: Add your own custom strategies as needed
 
 **The architecture is ready. Now go find what works best for you!** 🚀

@@ -8,7 +8,6 @@ import kotlinx.coroutines.flow.Flow
  *
  * Strategies implement different approaches to LLM orchestration:
  * - Single model strategies (DeepSeek, Qwen thinking, Qwen instruct)
- * - Multi-stage strategies (Hybrid planning → execution → synthesis)
  * - Custom strategies for specific use cases
  *
  * Strategies are stateless and isolated - they don't manage conversation history.

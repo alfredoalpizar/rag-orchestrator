@@ -41,8 +41,7 @@ data class LoopProperties(
     enum class ModelStrategy {
         DEEPSEEK_SINGLE,      // Use DeepSeek (existing logic)
         QWEN_SINGLE_THINKING, // Use Qwen-Thinking for all
-        QWEN_SINGLE_INSTRUCT, // Use Qwen-Instruct for all
-        QWEN_HYBRID_STAGED    // HYBRID_STAGE_BASED (planning→execution→synthesis)
+        QWEN_SINGLE_INSTRUCT  // Use Qwen-Instruct for all
     }
 
     data class StreamingProperties(
