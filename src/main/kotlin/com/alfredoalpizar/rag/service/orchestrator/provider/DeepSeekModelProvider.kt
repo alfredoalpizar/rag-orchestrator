@@ -49,13 +49,28 @@ class DeepSeekModelProvider(
 
         logger.debug { "Building DeepSeek request: model=$model, streaming=${config.streamingEnabled}" }
 
+        // Convert tool definitions to DeepSeek format
+        val deepSeekTools = if (tools.isNotEmpty()) {
+            tools.map { tool ->
+                val toolDef = tool as com.alfredoalpizar.rag.service.tool.ToolDefinition
+                DeepSeekTool(
+                    type = "function",
+                    function = DeepSeekFunction(
+                        name = toolDef.name,
+                        description = toolDef.description,
+                        parameters = toolDef.parameters
+                    )
+                )
+            }
+        } else null
+
         return DeepSeekChatRequest(
             model = model,
             messages = messages.map { it.toDeepSeekMessage() },
             temperature = config.temperature ?: loopProperties.temperature,
             maxTokens = config.maxTokens ?: loopProperties.maxTokens,
             stream = config.streamingEnabled,
-            tools = if (tools.isNotEmpty()) tools.map { it as DeepSeekTool } else null
+            tools = deepSeekTools
         )
     }
 
@@ -81,7 +96,8 @@ class DeepSeekModelProvider(
             reasoningDelta = null, // DeepSeek doesn't stream reasoning separately
             toolCalls = choice?.delta?.toolCalls?.map { it.toToolCall() },
             finishReason = choice?.finishReason,
-            role = choice?.delta?.role
+            role = choice?.delta?.role,
+            tokensUsed = chunk.usage?.totalTokens  // Extract token usage from final chunk
         )
     }
 

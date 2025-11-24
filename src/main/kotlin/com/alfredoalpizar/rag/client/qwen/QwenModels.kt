@@ -76,7 +76,8 @@ data class QwenUsage(
 data class QwenStreamChunk(
     val id: String,
     val model: String,
-    val choices: List<QwenStreamChoice>
+    val choices: List<QwenStreamChoice>,
+    val usage: QwenUsage? = null  // Usage sent in final chunk
 )
 
 data class QwenStreamChoice(

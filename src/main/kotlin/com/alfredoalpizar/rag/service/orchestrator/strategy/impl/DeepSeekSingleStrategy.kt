@@ -85,7 +85,7 @@ class DeepSeekSingleStrategy(
         config: RequestConfig,
         context: IterationContext
     ) {
-        val request = provider.buildRequest(messages, tools.map { it as DeepSeekTool }, config)
+        val request = provider.buildRequest(messages, tools, config)
 
         var accumulatedContent = StringBuilder()
         var accumulatedToolCalls = mutableListOf<com.alfredoalpizar.rag.model.domain.ToolCall>()
@@ -116,6 +116,20 @@ class DeepSeekSingleStrategy(
                             "tool_calls=${accumulatedToolCalls.size}"
                 }
 
+                // If no tool calls, this is the final response - emit FinalResponse
+                if (accumulatedToolCalls.isEmpty() && accumulatedContent.isNotEmpty()) {
+                    emit(
+                        StrategyEvent.FinalResponse(
+                            content = accumulatedContent.toString(),
+                            tokensUsed = totalTokens,
+                            metadata = mapOf(
+                                "finish_reason" to parsed.finishReason,
+                                "streaming" to true
+                            )
+                        )
+                    )
+                }
+
                 emit(
                     StrategyEvent.IterationComplete(
                         tokensUsed = totalTokens,
@@ -135,7 +149,7 @@ class DeepSeekSingleStrategy(
         tools: List<*>,
         config: RequestConfig
     ) {
-        val request = provider.buildRequest(messages, tools.map { it as DeepSeekTool }, config)
+        val request = provider.buildRequest(messages, tools, config)
         val response = provider.chat(request)
         val message = provider.extractMessage(response)
 

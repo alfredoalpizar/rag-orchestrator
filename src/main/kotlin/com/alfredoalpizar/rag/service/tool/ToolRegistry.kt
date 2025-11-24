@@ -9,6 +9,16 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
 
+/**
+ * Provider-agnostic tool definition.
+ * Providers convert this to their specific format.
+ */
+data class ToolDefinition(
+    val name: String,
+    val description: String,
+    val parameters: Map<String, Any>
+)
+
 @Service
 class ToolRegistry(
     tools: List<Tool>,
@@ -25,7 +35,26 @@ class ToolRegistry(
 
     fun getAllTools(): List<Tool> = toolMap.values.toList()
 
-    fun getToolDefinitions(): List<DeepSeekTool> {
+    /**
+     * Get provider-agnostic tool definitions.
+     * Use this for strategies - providers will convert to their format.
+     */
+    fun getToolDefinitions(): List<ToolDefinition> {
+        return toolMap.values.map { tool ->
+            ToolDefinition(
+                name = tool.name,
+                description = tool.description,
+                parameters = tool.parameters
+            )
+        }
+    }
+
+    /**
+     * @deprecated Use getToolDefinitions() instead. Providers handle conversion.
+     * Legacy method for backward compatibility.
+     */
+    @Deprecated("Use getToolDefinitions() - providers handle conversion")
+    fun getDeepSeekToolDefinitions(): List<DeepSeekTool> {
         return toolMap.values.map { tool ->
             DeepSeekTool(
                 type = "function",
