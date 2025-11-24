@@ -9,15 +9,24 @@ data class LoopProperties(
     val temperature: Double,
 
     // Model strategy selection
-    val modelStrategy: ModelStrategy,
+    val modelStrategy: ModelStrategy = ModelStrategy.DEEPSEEK_SINGLE,
+
+    // Legacy: Use DeepSeek reasoner vs chat (for backward compatibility)
+    val useReasoningModel: Boolean = false,
 
     // Thinking model settings
-    val thinking: ThinkingModelProperties,
+    val thinking: ThinkingModelProperties = ThinkingModelProperties(120, true),
 
     // Instruct model settings
-    val instruct: InstructModelProperties,
+    val instruct: InstructModelProperties = InstructModelProperties(30, 3),
 
-    val streaming: StreamingProperties
+    val streaming: StreamingProperties = StreamingProperties(
+        StreamingMode.STATUS_ONLY,
+        true,
+        true,
+        false,
+        256
+    )
 ) {
     data class ThinkingModelProperties(
         val timeoutSeconds: Long,
