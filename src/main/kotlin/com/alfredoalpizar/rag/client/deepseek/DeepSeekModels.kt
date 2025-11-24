@@ -72,7 +72,8 @@ data class DeepSeekUsage(
 data class DeepSeekStreamChunk(
     val id: String,
     val model: String,
-    val choices: List<DeepSeekStreamChoice>
+    val choices: List<DeepSeekStreamChoice>,
+    val usage: DeepSeekUsage? = null  // Usage sent in final chunk
 )
 
 data class DeepSeekStreamChoice(

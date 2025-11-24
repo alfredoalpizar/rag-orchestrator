@@ -60,13 +60,28 @@ class QwenModelProvider(
                     "thinking=$enableThinking"
         }
 
+        // Convert tool definitions to Qwen format
+        val qwenTools = if (tools.isNotEmpty()) {
+            tools.map { tool ->
+                val toolDef = tool as com.alfredoalpizar.rag.service.tool.ToolDefinition
+                QwenTool(
+                    type = "function",
+                    function = QwenFunction(
+                        name = toolDef.name,
+                        description = toolDef.description,
+                        parameters = toolDef.parameters
+                    )
+                )
+            }
+        } else null
+
         return QwenChatRequest(
             model = model,
             messages = messages.map { it.toQwenMessage() },
             temperature = config.temperature ?: loopProperties.temperature,
             maxTokens = config.maxTokens ?: loopProperties.maxTokens,
             stream = config.streamingEnabled,
-            tools = if (tools.isNotEmpty()) tools.map { it as QwenTool } else null,
+            tools = qwenTools,
             enableThinking = enableThinking
         )
     }
@@ -93,7 +108,8 @@ class QwenModelProvider(
             reasoningDelta = choice?.delta?.reasoningContent,  // Qwen thinking stream
             toolCalls = choice?.delta?.toolCalls?.map { it.toToolCall() },
             finishReason = choice?.finishReason,
-            role = choice?.delta?.role
+            role = choice?.delta?.role,
+            tokensUsed = chunk.usage?.totalTokens  // Extract token usage from final chunk
         )
     }
 

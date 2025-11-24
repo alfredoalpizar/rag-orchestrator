@@ -142,7 +142,7 @@ class QwenHybridStagedStrategy(
 
         val request = provider.buildRequest(
             messages,
-            tools.map { it as QwenTool },
+            tools,
             requestConfig
         )
 
@@ -177,6 +177,9 @@ class QwenHybridStagedStrategy(
 
                 // Collect tool calls
                 parsed.toolCalls?.let { toolCalls.addAll(it) }
+
+                // Accumulate token usage (typically sent in final chunk)
+                parsed.tokensUsed?.let { tokensUsed += it }
             }
         } else {
             // Synchronous planning

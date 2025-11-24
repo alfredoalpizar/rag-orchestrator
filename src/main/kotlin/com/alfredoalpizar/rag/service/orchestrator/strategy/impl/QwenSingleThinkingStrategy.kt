@@ -89,7 +89,7 @@ class QwenSingleThinkingStrategy(
         config: RequestConfig,
         context: IterationContext
     ) {
-        val request = provider.buildRequest(messages, tools.map { it as QwenTool }, config)
+        val request = provider.buildRequest(messages, tools, config)
 
         var accumulatedContent = StringBuilder()
         var accumulatedReasoning = StringBuilder()
@@ -131,6 +131,9 @@ class QwenSingleThinkingStrategy(
                 }
             }
 
+            // Accumulate token usage (typically sent in final chunk)
+            parsed.tokensUsed?.let { totalTokens += it }
+
             // Completion
             if (parsed.finishReason != null) {
                 logger.debug {
@@ -138,6 +141,22 @@ class QwenSingleThinkingStrategy(
                             "finish_reason=${parsed.finishReason}, " +
                             "tool_calls=${accumulatedToolCalls.size}, " +
                             "reasoning_length=${accumulatedReasoning.length}"
+                }
+
+                // If no tool calls, this is the final response - emit FinalResponse
+                if (accumulatedToolCalls.isEmpty() && accumulatedContent.isNotEmpty()) {
+                    emit(
+                        StrategyEvent.FinalResponse(
+                            content = accumulatedContent.toString(),
+                            tokensUsed = totalTokens,
+                            metadata = mapOf(
+                                "finish_reason" to parsed.finishReason,
+                                "model" to "qwen-max",
+                                "reasoning_length" to accumulatedReasoning.length,
+                                "streaming" to true
+                            )
+                        )
+                    )
                 }
 
                 emit(
@@ -161,7 +180,7 @@ class QwenSingleThinkingStrategy(
         tools: List<*>,
         config: RequestConfig
     ) {
-        val request = provider.buildRequest(messages, tools.map { it as QwenTool }, config)
+        val request = provider.buildRequest(messages, tools, config)
         val response = provider.chat(request)
         val message = provider.extractMessage(response)
 
