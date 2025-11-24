@@ -1,0 +1,57 @@
+# Integration Test Configuration
+# This profile is used for integration tests that make REAL API calls to LLM providers.
+#
+# Usage:
+#   ./gradlew test --tests "*IntegrationTest" -Dspring.profiles.active=integration-test
+#
+# Prerequisites:
+#   - Set DEEPSEEK_API_KEY environment variable
+#   - Set QWEN_API_KEY environment variable
+#   - Optionally set model names to use cheaper/faster models for testing
+
+# DeepSeek Configuration
+deepseek:
+  api:
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+    api-key: ${DEEPSEEK_API_KEY:your-api-key-here}
+    # Use cheaper/faster model for testing (or override with env var)
+    model: ${DEEPSEEK_TEST_MODEL:deepseek-chat}
+    timeout-seconds: 60
+    max-retries: 3
+
+# Qwen Configuration
+qwen:
+  api:
+    base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+    api-key: ${QWEN_API_KEY:your-api-key-here}
+    # Use cheaper/faster models for testing
+    model-instruct: ${QWEN_TEST_MODEL_INSTRUCT:qwen-plus}
+    model-thinking: ${QWEN_TEST_MODEL_THINKING:qwen-plus}
+    timeout-seconds: 60
+    max-retries: 3
+
+# Loop Configuration
+loop:
+  # Default strategy for integration tests (can be overridden per test)
+  model-strategy: ${TEST_STRATEGY:deepseek_single}
+  use-reasoning-model: false
+  max-iterations: 5
+  temperature: 0.7
+  max-tokens: 2000
+
+# Logging Configuration (verbose for test debugging)
+logging:
+  level:
+    com.alfredoalpizar.rag: DEBUG
+    org.springframework: INFO
+    org.springframework.test: INFO
+
+# Test Output Configuration
+test:
+  output:
+    # Where to save test outputs for manual review
+    directory: ${TEST_OUTPUT_DIR:test-outputs}
+    # Whether to save all test outputs (true) or only failed tests (false)
+    save-all: ${TEST_SAVE_ALL:true}
+    # Format: json, yaml, or txt
+    format: ${TEST_OUTPUT_FORMAT:txt}
