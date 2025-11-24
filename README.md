@@ -96,7 +96,6 @@ data: {"iterationsUsed": 2, "tokensUsed": 1523}
 - [IMPLEMENTATION_SPEC.md](IMPLEMENTATION_SPEC.md) - Technical architecture
 - [API_SPEC.md](API_SPEC.md) - Complete API reference
 - [TOOLS_GUIDE.md](TOOLS_GUIDE.md) - Building custom tools
-- [STREAMING_GUIDE.md](STREAMING_GUIDE.md) - SSE implementation details
 - [STRATEGY_IMPLEMENTATION_GUIDE.md](STRATEGY_IMPLEMENTATION_GUIDE.md) - Adding model strategies
 - [CONTEXT_MANAGEMENT_GUIDE.md](CONTEXT_MANAGEMENT_GUIDE.md) - Conversation context handling
 
