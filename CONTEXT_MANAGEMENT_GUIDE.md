@@ -39,6 +39,18 @@ Orchestrator Service
 4. Save new messages
 ```
 
+### Storage Abstraction
+
+```kotlin
+interface ConversationStorage {
+    fun saveConversation(conversation: Conversation): Conversation
+    fun findConversationById(id: String): Conversation?
+    fun findConversationsByCallerId(callerId: String, limit: Int): List<Conversation>
+    fun saveMessage(message: ConversationMessage): ConversationMessage
+    fun findMessagesByConversationId(conversationId: String): List<ConversationMessage>
+}
+```
+
 ---
 
 ## Data Structures
@@ -71,7 +83,7 @@ data class Message(
 ### How It Works
 
 ```
-Full history in database (10 messages):
+Full history in storage (10 messages):
 1. User: "Hello"
 2. Assistant: "Hi!"
 3. User: "What's the weather?"
@@ -116,24 +128,26 @@ val recentMessages = if (allMessages.size > windowSize) {
 
 ## Storage Modes
 
-### In-Memory (Testing)
+### In-Memory (Default)
 
 ```yaml
 conversation:
   storage-mode: in-memory
 ```
 
-- Fast, no persistence
+- Zero setup required
+- Uses `ConcurrentHashMap` internally
 - Data lost on restart
-- Good for development
+- Perfect for development and learning
 
-### SQL (Production)
+### Database (Production)
 
 ```yaml
 conversation:
-  storage-mode: sql
+  storage-mode: database
 ```
 
+- Requires PostgreSQL
 - Persistent storage
 - Full audit trail
 - Query by caller_id, date range
@@ -144,9 +158,46 @@ conversation:
 
 ```yaml
 conversation:
-  storage-mode: sql
+  storage-mode: in-memory  # or: database
   rolling-window-size: 20
 ```
+
+---
+
+## Enabling Database Mode
+
+1. Uncomment PostgreSQL driver in `build.gradle.kts`:
+
+```kotlin
+runtimeOnly("org.postgresql:postgresql")
+```
+
+2. Uncomment datasource config in `application.yml`:
+
+```yaml
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/rag_orchestrator}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+```
+
+3. Set storage mode:
+
+```yaml
+conversation:
+  storage-mode: database
+```
+
+4. Run Flyway migrations (automatic on startup).
 
 ---
 
@@ -160,9 +211,9 @@ CREATE TABLE conversations (
     caller_id VARCHAR(100) NOT NULL,
     user_id VARCHAR(100),
     account_id VARCHAR(100),
-    created_at DATETIME NOT NULL,
-    updated_at DATETIME NOT NULL,
-    last_message_at DATETIME,
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL,
+    last_message_at TIMESTAMP,
     message_count INT DEFAULT 0,
     tool_calls_count INT DEFAULT 0,
     total_tokens INT DEFAULT 0,
@@ -179,20 +230,20 @@ CREATE TABLE conversation_messages (
     role VARCHAR(20) NOT NULL,
     content TEXT NOT NULL,
     tool_call_id VARCHAR(100),
-    created_at DATETIME NOT NULL,
+    created_at TIMESTAMP NOT NULL,
     token_count INT
 );
 ```
 
 ---
 
-## Audit Queries
+## Audit Queries (Database Mode)
 
 ```sql
 -- Recent conversations by caller
 SELECT * FROM conversations
 WHERE caller_id = 'user@example.com'
-AND created_at > DATEADD(day, -7, GETDATE())
+AND created_at > NOW() - INTERVAL '7 days'
 ORDER BY created_at DESC;
 
 -- Message history

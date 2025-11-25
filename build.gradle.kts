@@ -25,12 +25,13 @@ dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-validation")
 	implementation("org.springframework.boot:spring-boot-starter-actuator")
 
-	// Database
+	// Database (only needed when using storage-mode: database)
+	// For in-memory mode (default), no database setup required
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-	// Note: Sybase JDBC driver must be installed manually to local Maven repo
-	// For quick start, use in-memory mode (set CONVERSATION_STORAGE_MODE=in-memory)
-	// compileOnly("com.sybase:jconn4:7.0") // Sybase JDBC driver
 	implementation("org.flywaydb:flyway-core")
+	implementation("org.flywaydb:flyway-database-postgresql")
+	// PostgreSQL driver - uncomment when using database mode
+	// runtimeOnly("org.postgresql:postgresql")
 
 	// Kotlin Support
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
@@ -54,7 +55,6 @@ dependencies {
 	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3")
 	testImplementation("io.mockk:mockk:1.13.8")
 	testImplementation("com.ninja-squad:springmockk:4.0.2")
-	testImplementation("com.h2database:h2") // For testing
 }
 
 tasks.withType<KotlinCompile> {

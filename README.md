@@ -28,9 +28,10 @@ cp .env.example .env
 
 docker run -d -p 8000:8000 chromadb/chroma
 
-./gradlew build -x test
 ./gradlew bootRun
 ```
+
+No database setup required - conversations are stored in-memory by default.
 
 ## Model Strategies
 
@@ -89,7 +90,14 @@ data: {"iterationsUsed": 2, "tokensUsed": 1523}
 1. **Add your knowledge base**: Populate ChromaDB with your domain documents
 2. **Create custom tools**: See [TOOLS_GUIDE.md](TOOLS_GUIDE.md) for the tool interface pattern
 3. **Choose/add model strategy**: Swap providers or add new ones via the strategy pattern
-4. **Configure storage**: Use SQL mode for production with audit trails
+4. **Enable persistence**: Switch to database mode for production (see [CONTEXT_MANAGEMENT_GUIDE.md](CONTEXT_MANAGEMENT_GUIDE.md))
+
+## Storage Modes
+
+| Mode | Config | Use Case |
+|------|--------|----------|
+| In-Memory | `storage-mode: in-memory` | Default. Zero setup, data lost on restart |
+| Database | `storage-mode: database` | Production. Requires PostgreSQL |
 
 ## Documentation
 

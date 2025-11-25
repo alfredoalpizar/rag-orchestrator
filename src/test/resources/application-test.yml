@@ -1,0 +1,17 @@
+# Test profile configuration
+# Uses in-memory storage by default, no database required
+
+spring:
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+
+conversation:
+  storage-mode: in-memory
+
+logging:
+  level:
+    root: WARN
+    com.alfredoalpizar.rag: DEBUG

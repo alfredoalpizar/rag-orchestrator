@@ -4,20 +4,16 @@ import com.alfredoalpizar.rag.config.ConversationProperties
 import com.alfredoalpizar.rag.exception.RagException
 import com.alfredoalpizar.rag.model.domain.*
 import com.alfredoalpizar.rag.model.request.CreateConversationRequest
-import com.alfredoalpizar.rag.repository.ConversationMessageRepository
-import com.alfredoalpizar.rag.repository.ConversationRepository
 import com.fasterxml.jackson.databind.ObjectMapper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import mu.KotlinLogging
-import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import java.time.Instant
 
 @Service
 class ContextManagerImpl(
-    private val conversationRepository: ConversationRepository,
-    private val messageRepository: ConversationMessageRepository,
+    private val storage: ConversationStorage,
     private val properties: ConversationProperties,
     private val objectMapper: ObjectMapper
 ) : ContextManager {
@@ -27,11 +23,11 @@ class ContextManagerImpl(
     override suspend fun loadConversation(conversationId: String): ConversationContext = withContext(Dispatchers.IO) {
         logger.debug { "Loading conversation: $conversationId" }
 
-        val conversation = conversationRepository.findById(conversationId)
-            .orElseThrow { RagException("Conversation not found: $conversationId") }
+        val conversation = storage.findConversationById(conversationId)
+            ?: throw RagException("Conversation not found: $conversationId")
 
-        // Load messages from database
-        val allMessages = messageRepository.findByConversation_ConversationIdOrderByCreatedAtAsc(conversationId)
+        // Load messages from storage
+        val allMessages = storage.findMessagesByConversationId(conversationId)
 
         // Apply rolling window
         val windowSize = properties.rollingWindowSize
@@ -61,7 +57,7 @@ class ContextManagerImpl(
         logger.debug { "Saving conversation: ${context.conversation.conversationId}" }
 
         context.conversation.updatedAt = Instant.now()
-        conversationRepository.save(context.conversation)
+        storage.saveConversation(context.conversation)
 
         logger.debug { "Conversation saved: ${context.conversation.conversationId}" }
     }
@@ -80,7 +76,7 @@ class ContextManagerImpl(
             }
         )
 
-        val saved = conversationRepository.save(conversation)
+        val saved = storage.saveConversation(conversation)
 
         logger.info { "Created conversation: ${saved.conversationId}" }
 
@@ -103,8 +99,8 @@ class ContextManagerImpl(
     override suspend fun addMessage(conversationId: String, message: Message): ConversationContext = withContext(Dispatchers.IO) {
         logger.debug { "Adding message to conversation: $conversationId, role=${message.role}" }
 
-        val conversation = conversationRepository.findById(conversationId)
-            .orElseThrow { RagException("Conversation not found: $conversationId") }
+        val conversation = storage.findConversationById(conversationId)
+            ?: throw RagException("Conversation not found: $conversationId")
 
         // Create message entity
         val messageEntity = ConversationMessage(
@@ -115,14 +111,14 @@ class ContextManagerImpl(
             tokenCount = estimateTokens(message.content)
         )
 
-        messageRepository.save(messageEntity)
+        storage.saveMessage(messageEntity)
 
         // Update conversation stats
         conversation.messageCount++
         conversation.totalTokens += messageEntity.tokenCount ?: 0
         conversation.lastMessageAt = Instant.now()
         conversation.updatedAt = Instant.now()
-        conversationRepository.save(conversation)
+        storage.saveConversation(conversation)
 
         logger.debug { "Message added to conversation: $conversationId, total messages=${conversation.messageCount}" }
 
@@ -133,8 +129,7 @@ class ContextManagerImpl(
     override suspend fun getRecentConversations(callerId: String, limit: Int): List<Conversation> = withContext(Dispatchers.IO) {
         logger.debug { "Getting recent conversations for caller: $callerId, limit=$limit" }
 
-        val pageable = PageRequest.of(0, limit)
-        val conversations = conversationRepository.findRecentByCallerId(callerId, pageable)
+        val conversations = storage.findConversationsByCallerId(callerId, limit)
 
         logger.debug { "Found ${conversations.size} conversations for caller: $callerId" }
 
