@@ -14,10 +14,6 @@ import java.util.Optional
 /**
  * Configuration for conversation storage.
  * Creates the appropriate storage bean based on conversation.storage-mode property.
- *
- * Uses the enum value directly, so it works with any case variation:
- * - in-memory, IN_MEMORY, in_memory all work
- * - database, DATABASE, Database all work
  */
 @Configuration
 class ConversationStorageConfig {

@@ -51,6 +51,20 @@ interface ConversationStorage {
 }
 ```
 
+### Storage Configuration
+
+Bean creation is handled by `ConversationStorageConfig`:
+
+```kotlin
+@Bean
+fun conversationStorage(properties: ConversationProperties, ...): ConversationStorage {
+    return when (properties.storageMode) {
+        StorageMode.IN_MEMORY -> InMemoryConversationStorage()
+        StorageMode.DATABASE -> DatabaseConversationStorage(repositories...)
+    }
+}
+```
+
 ---
 
 ## Data Structures

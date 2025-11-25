@@ -326,6 +326,18 @@ Implementations:
 - `InMemoryConversationStorage` - ConcurrentHashMap-based, zero setup
 - `DatabaseConversationStorage` - JPA repositories, requires PostgreSQL
 
+Bean creation is centralized in `ConversationStorageConfig`:
+
+```kotlin
+@Bean
+fun conversationStorage(properties: ConversationProperties, ...): ConversationStorage {
+    return when (properties.storageMode) {
+        StorageMode.IN_MEMORY -> InMemoryConversationStorage()
+        StorageMode.DATABASE -> DatabaseConversationStorage(repositories...)
+    }
+}
+```
+
 ### Rolling Window
 
 To prevent unbounded context growth, messages are windowed:
