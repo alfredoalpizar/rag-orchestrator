@@ -301,6 +301,43 @@ class RAGTool(private val chromaDBClient: ChromaDBClient) : Tool {
 
 ## Context Management
 
+### Storage Modes
+
+The system supports two storage modes, configured via `conversation.storage-mode`:
+
+| Mode | Use Case | Persistence |
+|------|----------|-------------|
+| `in-memory` | Development, quick start | None (lost on restart) |
+| `database` | Production, audit trails | PostgreSQL |
+
+### Storage Abstraction
+
+```kotlin
+interface ConversationStorage {
+    fun saveConversation(conversation: Conversation): Conversation
+    fun findConversationById(id: String): Conversation?
+    fun findConversationsByCallerId(callerId: String, limit: Int): List<Conversation>
+    fun saveMessage(message: ConversationMessage): ConversationMessage
+    fun findMessagesByConversationId(conversationId: String): List<ConversationMessage>
+}
+```
+
+Implementations:
+- `InMemoryConversationStorage` - ConcurrentHashMap-based, zero setup
+- `DatabaseConversationStorage` - JPA repositories, requires PostgreSQL
+
+Bean creation is centralized in `ConversationStorageConfig`:
+
+```kotlin
+@Bean
+fun conversationStorage(properties: ConversationProperties, ...): ConversationStorage {
+    return when (properties.storageMode) {
+        StorageMode.IN_MEMORY -> InMemoryConversationStorage()
+        StorageMode.DATABASE -> DatabaseConversationStorage(repositories...)
+    }
+}
+```
+
 ### Rolling Window
 
 To prevent unbounded context growth, messages are windowed:
@@ -314,9 +351,7 @@ val recentMessages = if (allMessages.size > windowSize) {
 }
 ```
 
-### Message Persistence
-
-Messages are stored in SQL for audit trails:
+### Database Schema (when using database mode)
 
 ```sql
 CREATE TABLE conversation_messages (
@@ -325,7 +360,7 @@ CREATE TABLE conversation_messages (
     role VARCHAR(20) NOT NULL,  -- user, assistant, tool, system
     content TEXT NOT NULL,
     tool_call_id VARCHAR(100),
-    created_at DATETIME NOT NULL,
+    created_at TIMESTAMP NOT NULL,
     token_count INT
 );
 ```

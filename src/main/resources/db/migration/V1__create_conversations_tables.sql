@@ -6,9 +6,9 @@ CREATE TABLE conversations (
     account_id VARCHAR(100),
 
     -- Timestamps
-    created_at DATETIME NOT NULL DEFAULT GETDATE(),
-    updated_at DATETIME NOT NULL DEFAULT GETDATE(),
-    last_message_at DATETIME,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_message_at TIMESTAMP,
 
     -- Stats
     message_count INT DEFAULT 0,
@@ -19,9 +19,9 @@ CREATE TABLE conversations (
     status VARCHAR(20) DEFAULT 'active', -- active, archived, deleted
 
     -- Storage
-    s3_key VARCHAR(255), -- Where full conversation is in S3 (for Phase 4)
+    s3_key VARCHAR(255), -- For S3 archival (optional)
 
-    -- Metadata (JSON as TEXT in Sybase)
+    -- Metadata (JSON as TEXT for portability)
     metadata TEXT
 );
 
@@ -39,7 +39,7 @@ CREATE TABLE conversation_messages (
     role VARCHAR(20) NOT NULL, -- user, assistant, tool, system
     content TEXT NOT NULL,
     tool_call_id VARCHAR(100),
-    created_at DATETIME NOT NULL DEFAULT GETDATE(),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     token_count INT,
 
     CONSTRAINT fk_message_conversation

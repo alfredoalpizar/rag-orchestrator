@@ -14,8 +14,7 @@ data class ConversationProperties(
 ) {
     enum class StorageMode {
         IN_MEMORY,
-        SQL,
-        REDIS
+        DATABASE
     }
 
     data class ArchiveProperties(

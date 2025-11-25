@@ -12,20 +12,28 @@ spring:
     serialization:
       write-dates-as-timestamps: false
 
-  # Database Configuration (Sybase ASE)
-  # Note: Comment out datasource config when using in-memory conversation mode
+  # Disable database auto-configuration for in-memory mode (default)
+  # Remove these exclusions when using storage-mode: database
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration
+      - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
+
+  # Database Configuration (PostgreSQL)
+  # Uncomment when using storage-mode: database (and remove autoconfigure.exclude above)
   # datasource:
-  #   url: ${DB_URL:jdbc:sybase:Tds:localhost:5000/your_database}
-  #   username: ${DB_USERNAME:}
+  #   url: ${DB_URL:jdbc:postgresql://localhost:5432/rag_orchestrator}
+  #   username: ${DB_USERNAME:postgres}
   #   password: ${DB_PASSWORD:}
-  #   driver-class-name: com.sybase.jdbc4.jdbc.SybDriver
+  #   driver-class-name: org.postgresql.Driver
 
   # jpa:
   #   hibernate:
   #     ddl-auto: validate  # Use flyway for migrations
   #   properties:
   #     hibernate:
-  #       dialect: org.hibernate.dialect.SybaseASE15Dialect
+  #       dialect: org.hibernate.dialect.PostgreSQLDialect
   #       format_sql: true
   #   show-sql: false
 
@@ -91,7 +99,7 @@ loop:
 
 # Conversation Management
 conversation:
-  storage-mode: in-memory  # Options: in-memory | sql | redis (use in-memory for quick start)
+  storage-mode: in-memory  # Options: in-memory | database
   max-context-tokens: 100000
   compression-threshold: 80000
   rolling-window-size: 20  # Keep last N messages
@@ -117,7 +125,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics,flyway
+        include: health,info,metrics
   endpoint:
     health:
       show-details: always
