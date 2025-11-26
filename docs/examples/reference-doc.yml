@@ -1,0 +1,356 @@
+# Example: Reference Documentation
+# Use this template for concept explanations, glossaries, and reference materials
+
+metadata:
+  # Required fields
+  id: "reference_authentication_concepts"
+  title: "Authentication and Authorization Concepts"
+  category: "reference"
+  version: "1.2.0"
+  status: "published"
+
+  # Ownership
+  owner: "security-team"
+  lastUpdated: "2025-11-22"
+
+  # Organization
+  organizationPath: "security.authentication.concepts"
+  tags:
+    - "authentication"
+    - "authorization"
+    - "security"
+    - "oauth"
+    - "jwt"
+
+  # Access control
+  accessRoles:
+    - "developer"
+    - "architect"
+    - "security_engineer"
+  platforms:
+    - "all"
+
+  # Related documents
+  relatedDocuments:
+    - id: "api_authentication"
+      relationship: "implementation"
+    - id: "workflow_setup_oauth"
+      relationship: "tutorial"
+
+content:
+  summary: "Core concepts and terminology for authentication and authorization systems"
+
+  # Body: Use H2 for major sections
+  body: |
+    ## Authentication vs Authorization
+
+    These terms are often confused but represent distinct concepts in security:
+
+    **Authentication** (Who are you?)
+    - Verifying the identity of a user, system, or entity
+    - Answers: "Is this person who they claim to be?"
+    - Methods: passwords, biometrics, tokens, certificates
+
+    **Authorization** (What can you do?)
+    - Determining what an authenticated user is allowed to access
+    - Answers: "Does this person have permission to access this resource?"
+    - Methods: RBAC, ABAC, ACLs, policies
+
+    **Example Flow:**
+    1. User enters username/password → **Authentication**
+    2. System verifies credentials → User is authenticated
+    3. User requests to delete a file → **Authorization**
+    4. System checks if user has delete permission → Allowed or denied
+
+    ## Authentication Methods
+
+    ### Password-Based Authentication
+
+    The most common authentication method:
+    - User provides username + password
+    - System verifies against stored credentials
+    - Passwords should be hashed (never stored in plaintext)
+
+    **Best Practices:**
+    - Minimum 8 characters
+    - Require mix of letters, numbers, symbols
+    - Implement rate limiting to prevent brute force
+    - Use bcrypt or Argon2 for hashing
+    - Enforce password expiration and history
+
+    **Weaknesses:**
+    - Vulnerable to phishing
+    - Users reuse passwords
+    - Can be brute-forced
+    - Social engineering attacks
+
+    ### Multi-Factor Authentication (MFA)
+
+    Requires two or more verification factors:
+    1. **Something you know** (password, PIN)
+    2. **Something you have** (phone, hardware token)
+    3. **Something you are** (fingerprint, face scan)
+
+    **Common MFA Methods:**
+    - SMS codes (least secure, but convenient)
+    - Authenticator apps (TOTP: Time-based One-Time Password)
+    - Hardware tokens (YubiKey, RSA SecurID)
+    - Biometric verification
+    - Push notifications to registered device
+
+    **Example TOTP Flow:**
+    ```
+    1. User enters password
+    2. System prompts for TOTP code
+    3. User opens authenticator app (Google Authenticator, Authy)
+    4. User enters 6-digit code
+    5. System validates code (30-second window)
+    6. Access granted if valid
+    ```
+
+    ### Token-Based Authentication
+
+    Uses cryptographic tokens instead of credentials:
+    - User authenticates once → receives token
+    - Token is sent with subsequent requests
+    - Server validates token without re-checking password
+
+    **Benefits:**
+    - Stateless (no server-side session storage)
+    - Scalable across multiple servers
+    - Can include claims/metadata
+    - Can set expiration time
+
+    **Common Token Formats:**
+    - **JWT** (JSON Web Token): Self-contained, signed
+    - **Opaque tokens**: Random string, requires lookup
+    - **OAuth 2.0 tokens**: Access + refresh tokens
+
+    ### OAuth 2.0
+
+    Industry-standard protocol for authorization:
+    - Delegates authentication to trusted provider (Google, GitHub, etc.)
+    - User grants limited access to resources
+    - Application receives access token
+
+    **OAuth Roles:**
+    - **Resource Owner**: User who owns the data
+    - **Client**: Application requesting access
+    - **Authorization Server**: Issues tokens (e.g., Google)
+    - **Resource Server**: Hosts protected resources (e.g., Gmail API)
+
+    **OAuth Flow (Authorization Code):**
+    ```
+    1. User clicks "Login with Google"
+    2. Redirected to Google login
+    3. User authenticates with Google
+    4. User grants permission to app
+    5. Google redirects back with authorization code
+    6. App exchanges code for access token
+    7. App uses token to access user's data
+    ```
+
+    ### Single Sign-On (SSO)
+
+    Log in once, access multiple applications:
+    - Central authentication service
+    - Applications trust the SSO provider
+    - User authenticates once per session
+
+    **Protocols:**
+    - **SAML 2.0**: XML-based, common in enterprise
+    - **OpenID Connect**: Built on OAuth 2.0, uses JWT
+    - **CAS**: Central Authentication Service
+
+    **Benefits:**
+    - Improved user experience (one login)
+    - Centralized access control
+    - Easier password management
+    - Better security monitoring
+
+    ## Authorization Models
+
+    ### Role-Based Access Control (RBAC)
+
+    Permissions assigned to roles, users assigned to roles:
+    ```
+    Roles: Admin, Editor, Viewer
+    Permissions:
+      Admin → Create, Read, Update, Delete
+      Editor → Create, Read, Update
+      Viewer → Read
+
+    User "Alice" → Role: Editor → Can create, read, update
+    ```
+
+    **Advantages:**
+    - Simple to understand and implement
+    - Scales well for most organizations
+    - Easy to audit
+
+    **Disadvantages:**
+    - Role explosion (too many specific roles)
+    - Difficult to handle exceptions
+    - No context awareness
+
+    ### Attribute-Based Access Control (ABAC)
+
+    Permissions based on attributes (user, resource, environment):
+    ```
+    Policy: Allow access if:
+      - user.department == resource.department
+      - user.clearance >= resource.classification
+      - environment.time is during business hours
+    ```
+
+    **Attributes:**
+    - **User attributes**: role, department, clearance_level
+    - **Resource attributes**: owner, classification, type
+    - **Environment attributes**: time, location, IP address
+
+    **Advantages:**
+    - Fine-grained control
+    - Context-aware decisions
+    - Fewer policies needed
+
+    **Disadvantages:**
+    - Complex to implement
+    - Harder to debug
+    - Performance overhead
+
+    ### Access Control Lists (ACLs)
+
+    Permissions specified per resource:
+    ```
+    Document "Q4_Report.pdf":
+      - Alice: Read, Write
+      - Bob: Read
+      - Finance Team: Read
+    ```
+
+    **Use Cases:**
+    - File systems (Linux permissions)
+    - Network firewalls
+    - Database row-level security
+
+    ## JSON Web Tokens (JWT)
+
+    Self-contained tokens for authentication/authorization.
+
+    **Structure:**
+    ```
+    header.payload.signature
+
+    Example:
+    eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.
+    eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.
+    SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+    ```
+
+    **Header:**
+    ```json
+    {
+      "alg": "HS256",
+      "typ": "JWT"
+    }
+    ```
+
+    **Payload (Claims):**
+    ```json
+    {
+      "sub": "user_123",           // Subject (user ID)
+      "name": "John Doe",
+      "email": "john@example.com",
+      "role": "admin",
+      "iat": 1516239022,           // Issued at
+      "exp": 1516242622            // Expiration
+    }
+    ```
+
+    **Signature:**
+    - Verifies token hasn't been tampered with
+    - Created using header + payload + secret key
+
+    **JWT Best Practices:**
+    - Keep tokens short-lived (15-60 minutes)
+    - Use refresh tokens for long-term access
+    - Don't store sensitive data in payload (it's base64, not encrypted!)
+    - Validate signature on every request
+    - Check expiration time
+    - Use strong signing algorithms (RS256 > HS256)
+
+    ## Security Best Practices
+
+    ### Password Security
+
+    - Use strong hashing algorithms (bcrypt, Argon2, scrypt)
+    - Add salt to prevent rainbow table attacks
+    - Implement account lockout after failed attempts
+    - Require password resets after breach detection
+    - Educate users on password managers
+
+    ### Token Security
+
+    - Store tokens securely (HttpOnly cookies, encrypted storage)
+    - Use short expiration times
+    - Implement token rotation
+    - Revoke tokens on logout
+    - Validate tokens on every request
+    - Use HTTPS exclusively
+
+    ### API Security
+
+    - Require authentication for all endpoints (except public ones)
+    - Implement rate limiting
+    - Validate input thoroughly
+    - Use API keys for service-to-service auth
+    - Log all authentication attempts
+    - Monitor for suspicious patterns
+
+    ## Common Vulnerabilities
+
+    ### Credential Stuffing
+
+    Attackers use leaked username/password pairs:
+    - **Prevention**: MFA, CAPTCHA, rate limiting, breach monitoring
+
+    ### Session Hijacking
+
+    Attacker steals session token:
+    - **Prevention**: HTTPS, secure cookies, short expiration
+
+    ### Cross-Site Request Forgery (CSRF)
+
+    Attacker tricks user into unwanted action:
+    - **Prevention**: CSRF tokens, SameSite cookies
+
+    ### Broken Authentication
+
+    Weak implementation of auth:
+    - **Prevention**: Use established frameworks, security audits
+
+    ## Glossary
+
+    - **OAuth 2.0**: Authorization framework for delegated access
+    - **OpenID Connect**: Authentication layer on top of OAuth 2.0
+    - **SAML**: Security Assertion Markup Language (XML-based SSO)
+    - **JWT**: JSON Web Token (self-contained token format)
+    - **TOTP**: Time-based One-Time Password (MFA method)
+    - **RBAC**: Role-Based Access Control
+    - **ABAC**: Attribute-Based Access Control
+    - **ACL**: Access Control List
+    - **IdP**: Identity Provider (authentication service)
+
+# Chunking behavior:
+# This document will be chunked by H2 sections (10 chunks):
+#   1. Introduction (if any)
+#   2. Authentication vs Authorization
+#   3. Authentication Methods
+#   4. Authorization Models
+#   5. JSON Web Tokens (JWT)
+#   6. Security Best Practices
+#   7. Common Vulnerabilities
+#   8. Glossary
+# Each chunk will have:
+#   - chunk_type: reference_section
+#   - chunk_heading: Section name

@@ -1,0 +1,306 @@
+# Example: Workflow/Procedure Guide
+# Use this template for step-by-step procedures and SOPs
+
+metadata:
+  # Required fields
+  id: "workflow_project_setup"
+  title: "New Project Setup Procedure"
+  category: "workflow"
+  version: "2.0.1"
+  status: "published"
+
+  # Ownership
+  owner: "engineering-team"
+  lastUpdated: "2025-11-20"
+
+  # Organization
+  organizationPath: "engineering.onboarding.project_setup"
+  tags:
+    - "onboarding"
+    - "project"
+    - "setup"
+    - "git"
+
+  # Access control
+  accessRoles:
+    - "developer"
+    - "tech_lead"
+    - "manager"
+  platforms:
+    - "web"
+    - "cli"
+
+  # Optional: Workflow-specific fields
+  estimatedDuration: "30 minutes"
+  difficulty: "intermediate"
+  prerequisites:
+    - "Access to GitHub organization"
+    - "Local development environment set up"
+    - "Familiarity with Git"
+
+  # Related documents
+  relatedDocuments:
+    - id: "reference_git_conventions"
+      relationship: "reference"
+    - id: "workflow_code_review"
+      relationship: "followup"
+
+content:
+  summary: "Step-by-step guide for setting up a new project repository"
+
+  # Body: Overview + numbered steps (use H3 for each step)
+  body: |
+    ## Overview
+
+    This workflow covers the complete process of setting up a new project repository,
+    from initial creation to deployment configuration. Following these steps ensures
+    consistency across all projects.
+
+    **Time Required:** ~30 minutes
+    **Prerequisites:**
+    - GitHub account with organization access
+    - Git installed locally
+    - Development tools configured
+
+    ### Step 1: Create Repository
+
+    Create a new repository in the GitHub organization.
+
+    1. Navigate to GitHub organization page
+    2. Click "New repository"
+    3. Fill in repository details:
+       - **Name:** Use kebab-case (e.g., `user-management-service`)
+       - **Description:** Brief, clear description of project purpose
+       - **Visibility:** Private (unless explicitly approved as public)
+       - **Initialize:** Check "Add README" and "Add .gitignore"
+
+    4. Select appropriate `.gitignore` template for your language
+    5. Choose license (default: MIT for open source, proprietary for internal)
+    6. Click "Create repository"
+
+    **Example:**
+    ```
+    Name: user-authentication-api
+    Description: REST API for user authentication and authorization
+    Visibility: Private
+    ```
+
+    ### Step 2: Clone and Configure Repository
+
+    Set up your local development environment.
+
+    ```bash
+    # Clone the repository
+    git clone git@github.com:yourorg/user-authentication-api.git
+    cd user-authentication-api
+
+    # Set up Git configuration
+    git config user.name "Your Name"
+    git config user.email "your.email@company.com"
+
+    # Create development branch
+    git checkout -b develop
+    git push -u origin develop
+    ```
+
+    **Branch Protection:**
+    After creating `develop` branch:
+    1. Go to Settings → Branches
+    2. Add branch protection rule for `main` and `develop`
+    3. Enable: "Require pull request reviews" (min 1 reviewer)
+    4. Enable: "Require status checks to pass"
+
+    ### Step 3: Set Up Project Structure
+
+    Initialize the project with standard structure.
+
+    For **backend services** (Node.js example):
+    ```bash
+    # Initialize package.json
+    npm init -y
+
+    # Install common dependencies
+    npm install express dotenv
+    npm install -D typescript @types/node @types/express
+
+    # Create standard directories
+    mkdir -p src/{controllers,services,models,config}
+    mkdir -p tests/{unit,integration}
+    mkdir -p docs
+
+    # Create .env.example
+    cat > .env.example << EOF
+    PORT=3000
+    NODE_ENV=development
+    DATABASE_URL=postgresql://localhost:5432/mydb
+    EOF
+    ```
+
+    For **frontend projects** (React example):
+    ```bash
+    # Use create-react-app or Vite
+    npx create-react-app .
+    # or
+    npm create vite@latest . -- --template react-ts
+
+    # Create standard directories
+    mkdir -p src/{components,pages,services,hooks,utils}
+    ```
+
+    ### Step 4: Configure CI/CD
+
+    Set up automated testing and deployment.
+
+    Create `.github/workflows/ci.yml`:
+    ```yaml
+    name: CI
+
+    on:
+      push:
+        branches: [main, develop]
+      pull_request:
+        branches: [main, develop]
+
+    jobs:
+      test:
+        runs-on: ubuntu-latest
+        steps:
+          - uses: actions/checkout@v3
+          - uses: actions/setup-node@v3
+            with:
+              node-version: 18
+          - run: npm ci
+          - run: npm test
+          - run: npm run lint
+    ```
+
+    **Required Checks:**
+    - Unit tests pass
+    - Linting passes
+    - Code coverage > 80%
+    - Build succeeds
+
+    ### Step 5: Add Documentation
+
+    Create essential documentation files.
+
+    **README.md:**
+    ```markdown
+    # Project Name
+
+    Brief description
+
+    ## Quick Start
+    [Installation and running instructions]
+
+    ## Documentation
+    - [API Docs](./docs/api.md)
+    - [Architecture](./docs/architecture.md)
+
+    ## Contributing
+    See [CONTRIBUTING.md](./CONTRIBUTING.md)
+    ```
+
+    **CONTRIBUTING.md:**
+    - Code style guide
+    - Commit message conventions
+    - PR process
+    - Testing requirements
+
+    **docs/architecture.md:**
+    - System design
+    - Technology stack
+    - Key decisions
+
+    ### Step 6: Configure Deployment
+
+    Set up deployment configuration.
+
+    **For Docker:**
+    Create `Dockerfile`:
+    ```dockerfile
+    FROM node:18-alpine
+    WORKDIR /app
+    COPY package*.json ./
+    RUN npm ci --only=production
+    COPY . .
+    EXPOSE 3000
+    CMD ["npm", "start"]
+    ```
+
+    Create `docker-compose.yml` for local development:
+    ```yaml
+    version: '3.8'
+    services:
+      app:
+        build: .
+        ports:
+          - "3000:3000"
+        environment:
+          - NODE_ENV=development
+        volumes:
+          - .:/app
+          - /app/node_modules
+    ```
+
+    **For Kubernetes:**
+    Create basic manifests in `k8s/` directory.
+
+    ### Step 7: Initial Commit and PR
+
+    Create initial pull request.
+
+    ```bash
+    # Stage all files
+    git add .
+
+    # Commit with conventional commit message
+    git commit -m "chore: initial project setup
+
+    - Add project structure
+    - Configure CI/CD
+    - Add documentation templates
+    - Set up Docker configuration"
+
+    # Push to develop
+    git push origin develop
+
+    # Create PR: develop → main
+    ```
+
+    **PR Checklist:**
+    - [ ] All CI checks pass
+    - [ ] Documentation is complete
+    - [ ] Branch protection configured
+    - [ ] At least one reviewer assigned
+
+    ## Verification
+
+    After completing all steps, verify:
+
+    ✅ Repository is created and accessible
+    ✅ Branch protection rules are active
+    ✅ CI/CD workflow runs successfully
+    ✅ Documentation is complete
+    ✅ Local development environment works
+    ✅ Docker build succeeds
+
+    ## Troubleshooting
+
+    **Problem:** CI workflow fails on first run
+    - **Solution:** Check Node.js version matches workflow configuration
+
+    **Problem:** Branch protection prevents direct push
+    - **Solution:** This is expected! Always create PRs
+
+    **Problem:** Docker build fails
+    - **Solution:** Ensure `.dockerignore` includes `node_modules/`
+
+# Chunking behavior:
+# This document will be chunked into 8 chunks:
+#   1. Overview (workflow_project_setup::overview)
+#   2-8. One chunk per step (workflow_project_setup::step_1, etc.)
+# Each chunk will have:
+#   - chunk_type: workflow_overview or workflow_step
+#   - step_number: 1-7
+#   - chunk_heading: Step title
