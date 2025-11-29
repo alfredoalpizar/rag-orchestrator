@@ -1,0 +1,16 @@
+---
+metadata:
+  id: "test-faq-1"
+  title: "Reset password guide"
+  category: "faq"
+  status: "published"
+  lastUpdated: null
+  tags: []
+  isPublished: true
+content:
+  body: "# Reset password guide\nThis is a guide for resetting a password when a user\
+    \ is locked out or forgot. There are multiple ways to do this.\n\n## Internal\
+    \ Service Portal Reset Password\nTo reset password this way, go to /internal/reset-password\
+    \ page and follow instructions\n\n## Login page reset password\nThe user can also\
+    \ click forgot password from the login screen"
+  summary: ""

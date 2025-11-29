@@ -1,0 +1,70 @@
+metadata:
+  id: api_authentication_reference
+  title: API Authentication Guide
+  category: reference
+  status: published
+  tags:
+    - api
+    - authentication
+    - security
+    - bearer-token
+
+content:
+  summary: Complete guide to authenticating with the RAG orchestrator REST API
+  body: |
+    ## Authentication Methods
+
+    The API supports Bearer token authentication. All authenticated endpoints
+    require a valid API key in the Authorization header.
+
+    ## Bearer Token Authentication
+
+    Include your API key in the Authorization header with every request:
+
+    ```
+    Authorization: Bearer your-api-key-here
+    ```
+
+    Example curl command:
+    ```bash
+    curl -H "Authorization: Bearer sk-abc123xyz" \
+         https://api.example.com/v1/chat/conversations
+    ```
+
+    ## Getting an API Key
+
+    API keys are generated from the dashboard:
+
+    1. Log in to your account
+    2. Navigate to Settings > API Keys
+    3. Click "Generate New Key"
+    4. Copy the key immediately (it won't be shown again)
+    5. Store it securely (treat it like a password)
+
+    ## Key Management Best Practices
+
+    - Never commit API keys to version control
+    - Use environment variables for key storage
+    - Rotate keys regularly (every 90 days recommended)
+    - Use different keys for development and production
+    - Revoke compromised keys immediately
+
+    ## Error Responses
+
+    Invalid or missing authentication returns HTTP 401:
+
+    ```json
+    {
+      "error": "Unauthorized",
+      "message": "Invalid or missing API key"
+    }
+    ```
+
+    Expired or revoked keys return HTTP 403:
+
+    ```json
+    {
+      "error": "Forbidden",
+      "message": "API key has been revoked"
+    }
+    ```

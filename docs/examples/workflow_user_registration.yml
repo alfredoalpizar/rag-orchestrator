@@ -1,0 +1,41 @@
+metadata:
+  id: user_registration_workflow
+  title: User Registration Process
+  category: workflow
+  status: published
+  lastUpdated: "2025-11-26"
+  tags:
+    - registration
+    - onboarding
+    - user-management
+
+content:
+  summary: Step-by-step guide for registering new users in the RAG orchestrator system
+  body: |
+    ## Overview
+
+    This workflow guides you through the complete user registration process.
+    The process ensures proper validation, account creation, and confirmation.
+
+    ### Step 1: Validate Email
+
+    Check that the email format is valid using regex pattern matching.
+    Verify the email domain is not blacklisted and the address is not already
+    registered in the system.
+
+    ### Step 2: Create Account
+
+    Insert the user record into the users table with a securely hashed password.
+    Use bcrypt or Argon2 for password hashing. Set initial account status to
+    'pending_verification'.
+
+    ### Step 3: Send Confirmation Email
+
+    Generate a unique verification token and email it to the user's email address.
+    The token should expire after 24 hours. Include a link to the verification
+    endpoint in the email body.
+
+    ### Step 4: Handle Verification
+
+    When the user clicks the verification link, validate the token and update
+    the account status to 'active'. Send a welcome email to the user.
