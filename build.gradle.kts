@@ -29,7 +29,7 @@ dependencies {
 	// For in-memory mode (default), no database setup required
 	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
 	implementation("org.flywaydb:flyway-core")
-	implementation("org.flywaydb:flyway-database-postgresql")
+	implementation("org.flywaydb:flyway-database-postgresql:10.10.0")
 	// PostgreSQL driver - uncomment when using database mode
 	// runtimeOnly("org.postgresql:postgresql")
 
@@ -42,6 +42,12 @@ dependencies {
 	// JSON Processing
 	implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 	implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310")
+	implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+
+	// AWS SDK v2 for DynamoDB (distributed locks)
+	implementation(platform("software.amazon.awssdk:bom:2.21.0"))
+	implementation("software.amazon.awssdk:dynamodb")
+	implementation("software.amazon.awssdk:netty-nio-client") // Async HTTP client
 
 	// Logging
 	implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
@@ -66,4 +72,25 @@ tasks.withType<KotlinCompile> {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+// Frontend build integration
+tasks.register<Exec>("buildFrontend") {
+	workingDir = file("frontend")
+	commandLine("npm", "run", "build:prod")
+
+	// Ensure npm install has been run
+	doFirst {
+		if (!file("frontend/node_modules").exists()) {
+			exec {
+				workingDir = file("frontend")
+				commandLine("npm", "install")
+			}
+		}
+	}
+}
+
+// Make bootJar depend on frontend build for production
+tasks.named("bootJar") {
+	dependsOn("buildFrontend")
 }

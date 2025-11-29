@@ -15,35 +15,53 @@ import java.util.concurrent.TimeUnit
 class WebClientConfig {
 
     @Bean
-    fun deepSeekWebClient(properties: DeepSeekProperties): WebClient {
+    fun deepSeekWebClient(): WebClient {
         val httpClient = HttpClient.create()
             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
-            .responseTimeout(Duration.ofSeconds(properties.timeoutSeconds))
+            .responseTimeout(Duration.ofSeconds(Environment.DEEPSEEK_TIMEOUT_SECONDS))
             .doOnConnected { conn ->
-                conn.addHandlerLast(ReadTimeoutHandler(properties.timeoutSeconds, TimeUnit.SECONDS))
-                    .addHandlerLast(WriteTimeoutHandler(properties.timeoutSeconds, TimeUnit.SECONDS))
+                conn.addHandlerLast(ReadTimeoutHandler(Environment.DEEPSEEK_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                    .addHandlerLast(WriteTimeoutHandler(Environment.DEEPSEEK_TIMEOUT_SECONDS, TimeUnit.SECONDS))
             }
 
         return WebClient.builder()
-            .baseUrl(properties.baseUrl)
-            .defaultHeader("Authorization", "Bearer ${properties.apiKey}")
+            .baseUrl(Environment.DEEPSEEK_BASE_URL)
+            .defaultHeader("Authorization", "Bearer ${Environment.DEEPSEEK_API_KEY}")
             .defaultHeader("Content-Type", "application/json")
             .clientConnector(ReactorClientHttpConnector(httpClient))
             .build()
     }
 
     @Bean
-    fun chromaDBWebClient(properties: ChromaDBProperties): WebClient {
+    fun chromaDBWebClient(): WebClient {
         val httpClient = HttpClient.create()
             .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 5000)
-            .responseTimeout(Duration.ofSeconds(properties.timeoutSeconds))
+            .responseTimeout(Duration.ofSeconds(Environment.CHROMADB_TIMEOUT_SECONDS))
             .doOnConnected { conn ->
-                conn.addHandlerLast(ReadTimeoutHandler(properties.timeoutSeconds, TimeUnit.SECONDS))
-                    .addHandlerLast(WriteTimeoutHandler(properties.timeoutSeconds, TimeUnit.SECONDS))
+                conn.addHandlerLast(ReadTimeoutHandler(Environment.CHROMADB_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                    .addHandlerLast(WriteTimeoutHandler(Environment.CHROMADB_TIMEOUT_SECONDS, TimeUnit.SECONDS))
             }
 
         return WebClient.builder()
-            .baseUrl(properties.baseUrl)
+            .baseUrl(Environment.CHROMADB_BASE_URL)
+            .defaultHeader("Content-Type", "application/json")
+            .clientConnector(ReactorClientHttpConnector(httpClient))
+            .build()
+    }
+
+    @Bean
+    fun qwenWebClient(): WebClient {
+        val httpClient = HttpClient.create()
+            .option(ChannelOption.CONNECT_TIMEOUT_MILLIS, 10000)
+            .responseTimeout(Duration.ofSeconds(Environment.QWEN_TIMEOUT_SECONDS))
+            .doOnConnected { conn ->
+                conn.addHandlerLast(ReadTimeoutHandler(Environment.QWEN_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+                    .addHandlerLast(WriteTimeoutHandler(Environment.QWEN_TIMEOUT_SECONDS, TimeUnit.SECONDS))
+            }
+
+        return WebClient.builder()
+            .baseUrl(Environment.FIREWORKS_BASE_URL)
+            .defaultHeader("Authorization", "Bearer ${Environment.FIREWORKS_API_KEY}")
             .defaultHeader("Content-Type", "application/json")
             .clientConnector(ReactorClientHttpConnector(httpClient))
             .build()

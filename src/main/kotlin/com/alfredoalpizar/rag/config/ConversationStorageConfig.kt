@@ -1,6 +1,5 @@
 package com.alfredoalpizar.rag.config
 
-import com.alfredoalpizar.rag.config.ConversationProperties.StorageMode
 import com.alfredoalpizar.rag.repository.ConversationMessageRepository
 import com.alfredoalpizar.rag.repository.ConversationRepository
 import com.alfredoalpizar.rag.service.context.ConversationStorage
@@ -22,16 +21,17 @@ class ConversationStorageConfig {
 
     @Bean
     fun conversationStorage(
-        properties: ConversationProperties,
         conversationRepository: Optional<ConversationRepository>,
         messageRepository: Optional<ConversationMessageRepository>
     ): ConversationStorage {
-        return when (properties.storageMode) {
-            StorageMode.IN_MEMORY -> {
+        val storageMode = Environment.CONVERSATION_STORAGE_MODE.lowercase().replace("-", "_")
+
+        return when (storageMode) {
+            "in_memory" -> {
                 logger.info { "Using in-memory conversation storage (data will not persist across restarts)" }
                 InMemoryConversationStorage()
             }
-            StorageMode.DATABASE -> {
+            "database" -> {
                 logger.info { "Using database conversation storage" }
                 DatabaseConversationStorage(
                     conversationRepository.orElseThrow {
@@ -41,6 +41,10 @@ class ConversationStorageConfig {
                         IllegalStateException("Database storage requires JPA repositories. Enable database auto-configuration.")
                     }
                 )
+            }
+            else -> {
+                logger.warn { "Unknown storage mode '$storageMode', defaulting to in-memory" }
+                InMemoryConversationStorage()
             }
         }
     }
