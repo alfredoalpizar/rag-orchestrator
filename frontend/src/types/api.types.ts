@@ -18,10 +18,101 @@ export interface ConversationResponse {
   title?: string;
 }
 
-export interface StreamEvent {
-  type: 'thinking' | 'content' | 'error' | 'done';
-  content?: string;
+// Comprehensive SSE Event Types
+export type StreamEvent =
+  | StatusUpdateEvent
+  | ToolCallStartEvent
+  | ToolCallResultEvent
+  | ResponseChunkEvent
+  | ReasoningTraceEvent
+  | ExecutionPlanEvent
+  | StageTransitionEvent
+  | CompletedEvent
+  | ErrorEvent;
+
+export interface StatusUpdateEvent {
+  type: 'StatusUpdate';
+  status: string;
+  timestamp?: string;
+}
+
+export interface ToolCallStartEvent {
+  type: 'ToolCallStart';
+  toolName: string;
+  arguments: Record<string, any>;
+  callId?: string;
+}
+
+export interface ToolCallResultEvent {
+  type: 'ToolCallResult';
+  callId?: string;
+  result: any;
+  success: boolean;
   error?: string;
+}
+
+export interface ResponseChunkEvent {
+  type: 'ResponseChunk';
+  content: string;
+  delta?: string;
+}
+
+export interface ReasoningTraceEvent {
+  type: 'ReasoningTrace';
+  reasoning: string;
+}
+
+export interface ExecutionPlanEvent {
+  type: 'ExecutionPlan';
+  plan: string;
+  steps?: string[];
+}
+
+export interface StageTransitionEvent {
+  type: 'StageTransition';
+  fromStage: string;
+  toStage: string;
+}
+
+export interface CompletedEvent {
+  type: 'Completed';
+  metrics: {
+    totalTokens?: number;
+    promptTokens?: number;
+    completionTokens?: number;
+    iterations?: number;
+    processingTimeMs?: number;
+  };
+}
+
+export interface ErrorEvent {
+  type: 'Error';
+  error: string;
+  code?: string;
+}
+
+// Message types for UI display
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  metadata?: {
+    reasoning?: string[];
+    toolCalls?: ToolCall[];
+    executionPlan?: string;
+    metrics?: CompletedEvent['metrics'];
+  };
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, any>;
+  result?: any;
+  success?: boolean;
+  error?: string;
+  timestamp?: string;
 }
 
 // Document Types

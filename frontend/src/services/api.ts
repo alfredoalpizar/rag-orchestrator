@@ -1,16 +1,13 @@
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
 import type {
-  ChatRequest,
   ConversationResponse,
   CreateConversationRequest,
   Document,
   DocumentListResponse,
   DocumentResponse,
   HealthResponse,
-  IngestDirectoryRequest,
   IngestDirectoryResponse,
-  IngestDocumentRequest,
   IngestDocumentResponse,
   IngestionStatsResponse,
   SearchResponse,
@@ -55,30 +52,61 @@ class ApiService {
   }
 
   // Stream chat messages using Server-Sent Events
-  streamMessage(conversationId: string, message: string, onEvent: (event: StreamEvent) => void): EventSource {
-    // For SSE, we need to use EventSource instead of axios
-    const eventSource = new EventSource(`/api/v1/chat/conversations/${conversationId}/messages/stream`);
+  async streamMessage(
+    conversationId: string,
+    message: string,
+    onEvent: (event: StreamEvent) => void,
+    onError?: (error: Error) => void
+  ): Promise<() => void> {
+    try {
+      // 1. POST message to initiate streaming
+      const response = await this.api.post(
+        `/chat/conversations/${conversationId}/messages/stream`,
+        { message }
+      );
 
-    // We'll need to send the message via POST first, then connect to SSE
-    // This is a simplified version - you may need to adjust based on your backend
-    this.api.post(`/chat/conversations/${conversationId}/messages/stream`, { message });
-
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as StreamEvent;
-        onEvent(data);
-      } catch (error) {
-        console.error('Failed to parse SSE event:', error);
+      if (response.status !== 200 && response.status !== 201) {
+        throw new Error(`Failed to send message: ${response.statusText}`);
       }
-    };
 
-    eventSource.onerror = (error) => {
-      console.error('SSE connection error:', error);
-      eventSource.close();
-      onEvent({ type: 'error', error: 'Connection lost' });
-    };
+      // 2. Connect EventSource for receiving events
+      // Note: The backend returns SSE response directly from the POST, so we may need to adjust this
+      const eventSource = new EventSource(
+        `/api/v1/chat/conversations/${conversationId}/messages/stream?lastEventId=${Date.now()}`
+      );
 
-    return eventSource;
+      // 3. Handle events
+      eventSource.addEventListener('message', (e) => {
+        try {
+          const event = JSON.parse(e.data) as StreamEvent;
+          onEvent(event);
+
+          // Auto-close on completion or error
+          if (event.type === 'Completed' || event.type === 'Error') {
+            eventSource.close();
+          }
+        } catch (error) {
+          console.error('Failed to parse SSE event:', error);
+        }
+      });
+
+      eventSource.addEventListener('error', (e) => {
+        console.error('SSE connection error:', e);
+        const error = new Error('Connection lost');
+        onError?.(error);
+        onEvent({ type: 'Error', error: 'Connection lost' });
+        eventSource.close();
+      });
+
+      // 4. Return cleanup function
+      return () => {
+        eventSource.close();
+      };
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      onError?.(err);
+      throw err;
+    }
   }
 
   // Document Management API

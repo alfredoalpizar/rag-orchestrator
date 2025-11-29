@@ -3,6 +3,7 @@ import DocumentsPage from './pages/DocumentsPage'
 import DocumentViewPage from './pages/DocumentViewPage'
 import DocumentEditPage from './pages/DocumentEditPage'
 import DocumentCreatePage from './pages/DocumentCreatePage'
+import ChatPage from './pages/ChatPage'
 import './App.css'
 
 function HomePage() {
@@ -18,6 +19,12 @@ function HomePage() {
           >
             Manage Documents
           </Link>
+          <Link
+            to="/chat"
+            className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
+          >
+            AI Chat
+          </Link>
         </div>
       </div>
     </div>
@@ -32,6 +39,7 @@ function App() {
           <div className="container mx-auto flex gap-6">
             <Link to="/" className="font-medium hover:text-blue-100 transition-colors">Home</Link>
             <Link to="/documents" className="font-medium hover:text-blue-100 transition-colors">Documents</Link>
+            <Link to="/chat" className="font-medium hover:text-blue-100 transition-colors">Chat</Link>
           </div>
         </nav>
         <Routes>
@@ -40,6 +48,8 @@ function App() {
           <Route path="/documents/new" element={<DocumentCreatePage />} />
           <Route path="/documents/:id" element={<DocumentViewPage />} />
           <Route path="/documents/:id/edit" element={<DocumentEditPage />} />
+          <Route path="/chat" element={<ChatPage />} />
+          <Route path="/chat/:conversationId" element={<ChatPage />} />
         </Routes>
       </div>
     </Router>
