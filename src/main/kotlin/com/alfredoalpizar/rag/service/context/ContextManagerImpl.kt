@@ -1,6 +1,7 @@
 package com.alfredoalpizar.rag.service.context
 
-import com.alfredoalpizar.rag.config.ConversationProperties
+import com.alfredoalpizar.rag.config.Environment
+import com.alfredoalpizar.rag.coroutine.currentMDCContext
 import com.alfredoalpizar.rag.exception.RagException
 import com.alfredoalpizar.rag.model.domain.*
 import com.alfredoalpizar.rag.model.request.CreateConversationRequest
@@ -14,13 +15,12 @@ import java.time.Instant
 @Service
 class ContextManagerImpl(
     private val storage: ConversationStorage,
-    private val properties: ConversationProperties,
     private val objectMapper: ObjectMapper
 ) : ContextManager {
 
     private val logger = KotlinLogging.logger {}
 
-    override suspend fun loadConversation(conversationId: String): ConversationContext = withContext(Dispatchers.IO) {
+    override suspend fun loadConversation(conversationId: String): ConversationContext = withContext(Dispatchers.IO + currentMDCContext()) {
         logger.debug { "Loading conversation: $conversationId" }
 
         val conversation = storage.findConversationById(conversationId)
@@ -30,7 +30,7 @@ class ContextManagerImpl(
         val allMessages = storage.findMessagesByConversationId(conversationId)
 
         // Apply rolling window
-        val windowSize = properties.rollingWindowSize
+        val windowSize = Environment.CONVERSATION_ROLLING_WINDOW_SIZE
         val recentMessages = if (allMessages.size > windowSize) {
             logger.debug { "Applying rolling window: ${allMessages.size} messages -> $windowSize messages" }
             allMessages.takeLast(windowSize)
@@ -53,7 +53,7 @@ class ContextManagerImpl(
         )
     }
 
-    override suspend fun saveConversation(context: ConversationContext) = withContext(Dispatchers.IO) {
+    override suspend fun saveConversation(context: ConversationContext) = withContext(Dispatchers.IO + currentMDCContext()) {
         logger.debug { "Saving conversation: ${context.conversation.conversationId}" }
 
         context.conversation.updatedAt = Instant.now()
@@ -62,7 +62,7 @@ class ContextManagerImpl(
         logger.debug { "Conversation saved: ${context.conversation.conversationId}" }
     }
 
-    override suspend fun createConversation(request: CreateConversationRequest): ConversationContext = withContext(Dispatchers.IO) {
+    override suspend fun createConversation(request: CreateConversationRequest): ConversationContext = withContext(Dispatchers.IO + currentMDCContext()) {
         logger.info { "Creating new conversation for caller: ${request.callerId}" }
 
         val conversation = Conversation(
@@ -96,7 +96,7 @@ class ContextManagerImpl(
         )
     }
 
-    override suspend fun addMessage(conversationId: String, message: Message): ConversationContext = withContext(Dispatchers.IO) {
+    override suspend fun addMessage(conversationId: String, message: Message): ConversationContext = withContext(Dispatchers.IO + currentMDCContext()) {
         logger.debug { "Adding message to conversation: $conversationId, role=${message.role}" }
 
         val conversation = storage.findConversationById(conversationId)
@@ -126,7 +126,7 @@ class ContextManagerImpl(
         loadConversation(conversationId)
     }
 
-    override suspend fun getRecentConversations(callerId: String, limit: Int): List<Conversation> = withContext(Dispatchers.IO) {
+    override suspend fun getRecentConversations(callerId: String, limit: Int): List<Conversation> = withContext(Dispatchers.IO + currentMDCContext()) {
         logger.debug { "Getting recent conversations for caller: $callerId, limit=$limit" }
 
         val conversations = storage.findConversationsByCallerId(callerId, limit)

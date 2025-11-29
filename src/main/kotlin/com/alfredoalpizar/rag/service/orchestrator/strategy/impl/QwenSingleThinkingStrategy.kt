@@ -1,8 +1,8 @@
 package com.alfredoalpizar.rag.service.orchestrator.strategy.impl
 
 import com.alfredoalpizar.rag.client.qwen.QwenTool
-import com.alfredoalpizar.rag.config.LoopProperties
-import com.alfredoalpizar.rag.config.LoopProperties.ModelStrategy
+import com.alfredoalpizar.rag.config.Environment
+import com.alfredoalpizar.rag.config.Environment.ModelStrategy
 import com.alfredoalpizar.rag.model.domain.Message
 import com.alfredoalpizar.rag.service.orchestrator.provider.QwenModelProvider
 import com.alfredoalpizar.rag.service.orchestrator.provider.RequestConfig
@@ -30,8 +30,7 @@ import org.springframework.stereotype.Component
     havingValue = "qwen_single_thinking"
 )
 class QwenSingleThinkingStrategy(
-    private val provider: QwenModelProvider,
-    private val properties: LoopProperties
+    private val provider: QwenModelProvider
 ) : ModelStrategyExecutor {
 
     private val logger = KotlinLogging.logger {}
@@ -64,8 +63,8 @@ class QwenSingleThinkingStrategy(
 
         val requestConfig = RequestConfig(
             streamingEnabled = iterationContext.streamingMode == StreamingMode.PROGRESSIVE,
-            temperature = properties.temperature,
-            maxTokens = properties.maxTokens,
+            temperature = Environment.LOOP_TEMPERATURE,
+            maxTokens = Environment.LOOP_MAX_TOKENS,
             extraParams = mapOf(
                 "useThinkingModel" to true,
                 "enableThinking" to true  // Enable reasoning for thinking model
@@ -104,7 +103,7 @@ class QwenSingleThinkingStrategy(
                 accumulatedReasoning.append(reasoningDelta)
                 logger.trace { "Reasoning trace: $reasoningDelta" }
 
-                if (properties.thinking.showReasoningTraces) {
+                if (Environment.LOOP_THINKING_SHOW_REASONING) {
                     emit(
                         StrategyEvent.ReasoningChunk(
                             content = reasoningDelta,
@@ -188,7 +187,7 @@ class QwenSingleThinkingStrategy(
         message.reasoningContent?.let { reasoning ->
             logger.debug { "Reasoning content (length=${reasoning.length}): ${reasoning.take(200)}..." }
 
-            if (properties.thinking.showReasoningTraces) {
+            if (Environment.LOOP_THINKING_SHOW_REASONING) {
                 emit(
                     StrategyEvent.ReasoningChunk(
                         content = reasoning,

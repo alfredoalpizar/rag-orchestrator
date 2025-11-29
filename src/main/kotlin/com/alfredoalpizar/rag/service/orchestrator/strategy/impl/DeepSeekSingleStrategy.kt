@@ -1,8 +1,8 @@
 package com.alfredoalpizar.rag.service.orchestrator.strategy.impl
 
 import com.alfredoalpizar.rag.client.deepseek.DeepSeekTool
-import com.alfredoalpizar.rag.config.LoopProperties
-import com.alfredoalpizar.rag.config.LoopProperties.ModelStrategy
+import com.alfredoalpizar.rag.config.Environment
+import com.alfredoalpizar.rag.config.Environment.ModelStrategy
 import com.alfredoalpizar.rag.model.domain.Message
 import com.alfredoalpizar.rag.service.orchestrator.provider.DeepSeekModelProvider
 import com.alfredoalpizar.rag.service.orchestrator.provider.RequestConfig
@@ -30,14 +30,13 @@ import org.springframework.stereotype.Component
     matchIfMissing = true  // Default strategy
 )
 class DeepSeekSingleStrategy(
-    private val provider: DeepSeekModelProvider,
-    private val properties: LoopProperties
+    private val provider: DeepSeekModelProvider
 ) : ModelStrategyExecutor {
 
     private val logger = KotlinLogging.logger {}
 
     init {
-        val model = if (properties.useReasoningModel) "deepseek-reasoner" else "deepseek-chat"
+        val model = if (Environment.LOOP_USE_REASONING_MODEL) "deepseek-reasoner" else "deepseek-chat"
         logger.info {
             """
             ╔════════════════════════════════════════════════════════╗
@@ -65,9 +64,9 @@ class DeepSeekSingleStrategy(
 
         val requestConfig = RequestConfig(
             streamingEnabled = iterationContext.streamingMode == StreamingMode.PROGRESSIVE,
-            temperature = properties.temperature,
-            maxTokens = properties.maxTokens,
-            extraParams = mapOf("useReasoningModel" to properties.useReasoningModel)
+            temperature = Environment.LOOP_TEMPERATURE,
+            maxTokens = Environment.LOOP_MAX_TOKENS,
+            extraParams = mapOf("useReasoningModel" to Environment.LOOP_USE_REASONING_MODEL)
         )
 
         if (iterationContext.streamingMode == StreamingMode.PROGRESSIVE) {
