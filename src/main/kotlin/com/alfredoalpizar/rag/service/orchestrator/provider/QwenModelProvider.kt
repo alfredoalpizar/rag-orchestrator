@@ -1,14 +1,13 @@
 package com.alfredoalpizar.rag.service.orchestrator.provider
 
 import com.alfredoalpizar.rag.client.qwen.*
-import com.alfredoalpizar.rag.config.LoopProperties
-import com.alfredoalpizar.rag.config.QwenProperties
+import com.alfredoalpizar.rag.config.Environment
 import com.alfredoalpizar.rag.model.domain.FunctionCall
 import com.alfredoalpizar.rag.model.domain.Message
 import com.alfredoalpizar.rag.model.domain.ToolCall
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.reactor.asFlow
-import kotlinx.coroutines.reactor.awaitSingle
+import kotlinx.coroutines.reactive.asFlow
+import kotlinx.coroutines.reactive.awaitSingle
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 
@@ -23,9 +22,7 @@ import org.springframework.stereotype.Component
  */
 @Component
 class QwenModelProvider(
-    private val client: QwenClient,
-    private val qwenProperties: QwenProperties,
-    private val loopProperties: LoopProperties
+    private val client: QwenClient
 ) : ModelProvider<QwenChatRequest, QwenChatResponse, QwenStreamChunk> {
 
     private val logger = KotlinLogging.logger {}
@@ -45,14 +42,14 @@ class QwenModelProvider(
     ): QwenChatRequest {
         // Determine model based on configuration
         val model = when {
-            config.extraParams["useThinkingModel"] as? Boolean == true -> qwenProperties.thinkingModel
-            config.extraParams["useInstructModel"] as? Boolean == true -> qwenProperties.instructModel
-            else -> qwenProperties.thinkingModel  // Default to thinking model
+            config.extraParams["useThinkingModel"] as? Boolean == true -> Environment.QWEN_THINKING_MODEL
+            config.extraParams["useInstructModel"] as? Boolean == true -> Environment.QWEN_INSTRUCT_MODEL
+            else -> Environment.QWEN_THINKING_MODEL  // Default to thinking model
         }
 
         // Enable thinking for thinking models
         val enableThinking = config.extraParams["enableThinking"] as? Boolean
-            ?: (model == qwenProperties.thinkingModel)
+            ?: (model == Environment.QWEN_THINKING_MODEL)
 
         logger.debug {
             "Building Qwen request: model=$model, " +
@@ -78,8 +75,8 @@ class QwenModelProvider(
         return QwenChatRequest(
             model = model,
             messages = messages.map { it.toQwenMessage() },
-            temperature = config.temperature ?: loopProperties.temperature,
-            maxTokens = config.maxTokens ?: loopProperties.maxTokens,
+            temperature = config.temperature ?: Environment.LOOP_TEMPERATURE,
+            maxTokens = config.maxTokens ?: Environment.LOOP_MAX_TOKENS,
             stream = config.streamingEnabled,
             tools = qwenTools,
             enableThinking = enableThinking
