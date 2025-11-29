@@ -1,6 +1,6 @@
 package com.alfredoalpizar.rag.service.orchestrator.strategy
 
-import com.alfredoalpizar.rag.config.LoopProperties.ModelStrategy
+import com.alfredoalpizar.rag.config.Environment.ModelStrategy
 
 /**
  * Metadata about a model strategy implementation.

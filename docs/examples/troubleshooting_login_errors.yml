@@ -1,0 +1,60 @@
+metadata:
+  id: troubleshooting_login_errors
+  title: Login Error Troubleshooting
+  category: troubleshooting
+  status: published
+  tags:
+    - login
+    - troubleshooting
+    - authentication
+    - errors
+
+content:
+  body: |
+    ## "Invalid Credentials" Error
+
+    This error means the email/password combination doesn't match our records.
+
+    **Solutions:**
+    - Double-check your email address for typos
+    - Ensure Caps Lock is off when entering your password
+    - Try the "Forgot Password" flow to reset your password
+    - If you recently changed your password, make sure you're using the new one
+
+    ## "Account Locked" Error
+
+    Your account is temporarily locked after 5 failed login attempts within 15 minutes.
+
+    **Solutions:**
+    - Wait 15 minutes and try again
+    - Use the "Forgot Password" link to reset your password (this unlocks your account)
+    - Contact support if you believe your account was compromised
+
+    ## "Email Not Verified" Error
+
+    You must verify your email before logging in.
+
+    **Solutions:**
+    - Check your inbox for the verification email (including spam folder)
+    - Click the "Resend Verification Email" link on the login page
+    - If the verification link expired, request a new one
+    - Contact support if you can't access the email address
+
+    ## Session Expired Error
+
+    Your login session has expired for security reasons (after 24 hours of inactivity).
+
+    **Solutions:**
+    - Simply log in again with your credentials
+    - Enable "Remember Me" to extend session duration to 30 days
+    - Close and reopen your browser if the error persists
+
+    ## Two-Factor Authentication Issues
+
+    Problems with 2FA codes not working.
+
+    **Solutions:**
+    - Ensure your device clock is synchronized (2FA codes are time-based)
+    - Try the next code if the current one expired
+    - Use backup codes if you lost access to your 2FA device
+    - Contact support to disable 2FA if you've lost all access methods

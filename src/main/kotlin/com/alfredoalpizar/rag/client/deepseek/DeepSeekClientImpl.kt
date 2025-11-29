@@ -1,8 +1,9 @@
 package com.alfredoalpizar.rag.client.deepseek
 
-import com.alfredoalpizar.rag.config.DeepSeekProperties
+import com.alfredoalpizar.rag.config.Environment
 import com.fasterxml.jackson.databind.ObjectMapper
 import mu.KotlinLogging
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientRequestException
@@ -15,8 +16,8 @@ import java.util.concurrent.TimeoutException
 
 @Component
 class DeepSeekClientImpl(
+    @Qualifier("deepSeekWebClient")
     private val webClient: WebClient,
-    private val properties: DeepSeekProperties,
     private val objectMapper: ObjectMapper
 ) : DeepSeekClient {
 
@@ -26,8 +27,8 @@ class DeepSeekClientImpl(
         logger.debug { "Sending chat request to DeepSeek API: model=${request.model}" }
 
         return webClient.post()
-            .uri("${properties.baseUrl}/chat/completions")
-            .header("Authorization", "Bearer ${properties.apiKey}")
+            .uri("/chat/completions")
+            .header("Authorization", "Bearer ${Environment.DEEPSEEK_API_KEY}")
             .header("Content-Type", "application/json")
             .bodyValue(request)
             .retrieve()
@@ -43,7 +44,7 @@ class DeepSeekClientImpl(
             })
             .bodyToMono(DeepSeekChatResponse::class.java)
             .retryWhen(retrySpec())
-            .timeout(Duration.ofSeconds(properties.timeoutSeconds))
+            .timeout(Duration.ofSeconds(Environment.DEEPSEEK_TIMEOUT_SECONDS))
             .doOnSuccess { response ->
                 logger.debug { "Received chat response from DeepSeek: id=${response.id}, tokens=${response.usage?.totalTokens}" }
             }
@@ -58,8 +59,8 @@ class DeepSeekClientImpl(
         logger.debug { "Starting chat stream to DeepSeek API: model=${streamRequest.model}" }
 
         return webClient.post()
-            .uri("${properties.baseUrl}/chat/completions")
-            .header("Authorization", "Bearer ${properties.apiKey}")
+            .uri("/chat/completions")
+            .header("Authorization", "Bearer ${Environment.DEEPSEEK_API_KEY}")
             .header("Content-Type", "application/json")
             .bodyValue(streamRequest)
             .retrieve()
@@ -80,7 +81,7 @@ class DeepSeekClientImpl(
             .map { line ->
                 parseStreamChunk(line)
             }
-            .timeout(Duration.ofSeconds(properties.timeoutSeconds))
+            .timeout(Duration.ofSeconds(Environment.DEEPSEEK_TIMEOUT_SECONDS))
             .doOnComplete {
                 logger.debug { "Chat stream completed" }
             }
@@ -93,13 +94,13 @@ class DeepSeekClientImpl(
         logger.debug { "Sending embedding request to DeepSeek API: ${texts.size} texts" }
 
         val request = DeepSeekEmbeddingRequest(
-            model = properties.embeddingModel,
+            model = Environment.DEEPSEEK_EMBEDDING_MODEL,
             input = texts
         )
 
         return webClient.post()
-            .uri("${properties.baseUrl}/embeddings")
-            .header("Authorization", "Bearer ${properties.apiKey}")
+            .uri("/embeddings")
+            .header("Authorization", "Bearer ${Environment.DEEPSEEK_API_KEY}")
             .header("Content-Type", "application/json")
             .bodyValue(request)
             .retrieve()
@@ -118,7 +119,7 @@ class DeepSeekClientImpl(
                 response.data.sortedBy { it.index }.map { it.embedding }
             }
             .retryWhen(retrySpec())
-            .timeout(Duration.ofSeconds(properties.timeoutSeconds))
+            .timeout(Duration.ofSeconds(Environment.DEEPSEEK_TIMEOUT_SECONDS))
             .doOnSuccess { embeddings ->
                 logger.debug { "Received ${embeddings.size} embeddings from DeepSeek" }
             }
@@ -133,7 +134,7 @@ class DeepSeekClientImpl(
     }
 
     private fun retrySpec(): Retry {
-        return Retry.backoff(properties.maxRetries.toLong(), Duration.ofSeconds(1))
+        return Retry.backoff(Environment.DEEPSEEK_MAX_RETRIES.toLong(), Duration.ofSeconds(1))
             .filter { error ->
                 error is WebClientRequestException ||
                 error is TimeoutException ||

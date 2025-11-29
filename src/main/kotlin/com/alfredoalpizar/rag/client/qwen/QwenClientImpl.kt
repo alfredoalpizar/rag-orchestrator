@@ -1,8 +1,9 @@
 package com.alfredoalpizar.rag.client.qwen
 
-import com.alfredoalpizar.rag.config.QwenProperties
+import com.alfredoalpizar.rag.config.Environment
 import com.fasterxml.jackson.databind.ObjectMapper
 import mu.KotlinLogging
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientRequestException
@@ -15,8 +16,8 @@ import java.util.concurrent.TimeoutException
 
 @Component
 class QwenClientImpl(
+    @Qualifier("qwenWebClient")
     private val webClient: WebClient,
-    private val properties: QwenProperties,
     private val objectMapper: ObjectMapper
 ) : QwenClient {
 
@@ -26,8 +27,8 @@ class QwenClientImpl(
         logger.debug { "Sending chat request to Qwen API: model=${request.model}" }
 
         return webClient.post()
-            .uri("${properties.baseUrl}/v1/chat/completions")
-            .header("Authorization", "Bearer ${properties.apiKey}")
+            .uri("/chat/completions")
+            .header("Authorization", "Bearer ${Environment.FIREWORKS_API_KEY}")
             .header("Content-Type", "application/json")
             .bodyValue(request)
             .retrieve()
@@ -43,7 +44,7 @@ class QwenClientImpl(
             })
             .bodyToMono(QwenChatResponse::class.java)
             .retryWhen(retrySpec())
-            .timeout(Duration.ofSeconds(properties.timeoutSeconds))
+            .timeout(Duration.ofSeconds(Environment.QWEN_TIMEOUT_SECONDS))
             .doOnSuccess { response ->
                 logger.debug { "Received chat response from Qwen: id=${response.id}, tokens=${response.usage?.totalTokens}" }
             }
@@ -58,8 +59,8 @@ class QwenClientImpl(
         logger.debug { "Starting chat stream to Qwen API: model=${streamRequest.model}" }
 
         return webClient.post()
-            .uri("${properties.baseUrl}/v1/chat/completions")
-            .header("Authorization", "Bearer ${properties.apiKey}")
+            .uri("/chat/completions")
+            .header("Authorization", "Bearer ${Environment.FIREWORKS_API_KEY}")
             .header("Content-Type", "application/json")
             .bodyValue(streamRequest)
             .retrieve()
@@ -80,7 +81,7 @@ class QwenClientImpl(
             .map { line ->
                 parseStreamChunk(line)
             }
-            .timeout(Duration.ofSeconds(properties.timeoutSeconds))
+            .timeout(Duration.ofSeconds(Environment.QWEN_TIMEOUT_SECONDS))
             .doOnComplete {
                 logger.debug { "Chat stream completed" }
             }
@@ -93,13 +94,13 @@ class QwenClientImpl(
         logger.debug { "Sending embedding request to Qwen API: ${texts.size} texts" }
 
         val request = QwenEmbeddingRequest(
-            model = properties.embeddingModel,
+            model = Environment.QWEN_EMBEDDING_MODEL,
             input = texts
         )
 
         return webClient.post()
-            .uri("${properties.baseUrl}/v1/embeddings")
-            .header("Authorization", "Bearer ${properties.apiKey}")
+            .uri("/embeddings")
+            .header("Authorization", "Bearer ${Environment.FIREWORKS_API_KEY}")
             .header("Content-Type", "application/json")
             .bodyValue(request)
             .retrieve()
@@ -118,7 +119,7 @@ class QwenClientImpl(
                 response.data.sortedBy { it.index }.map { it.embedding }
             }
             .retryWhen(retrySpec())
-            .timeout(Duration.ofSeconds(properties.timeoutSeconds))
+            .timeout(Duration.ofSeconds(Environment.QWEN_TIMEOUT_SECONDS))
             .doOnSuccess { embeddings ->
                 logger.debug { "Received ${embeddings.size} embeddings from Qwen" }
             }
@@ -133,7 +134,7 @@ class QwenClientImpl(
     }
 
     private fun retrySpec(): Retry {
-        return Retry.backoff(properties.maxRetries.toLong(), Duration.ofSeconds(1))
+        return Retry.backoff(Environment.QWEN_MAX_RETRIES.toLong(), Duration.ofSeconds(1))
             .filter { error ->
                 error is WebClientRequestException ||
                 error is TimeoutException ||

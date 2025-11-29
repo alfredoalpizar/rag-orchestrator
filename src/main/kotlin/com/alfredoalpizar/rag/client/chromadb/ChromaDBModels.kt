@@ -16,6 +16,30 @@ data class ChromaDBAddRequest(
     val metadatas: List<Map<String, Any>>? = null
 )
 
+data class ChromaDBUpsertRequest(
+    val documents: List<String>,
+    val ids: List<String>,
+    val embeddings: List<List<Float>>,
+    val metadatas: List<Map<String, Any>>? = null
+)
+
+data class ChromaDBDeleteRequest(
+    val ids: List<String>? = null,
+    val where: Map<String, Any>? = null
+)
+
+data class ChromaDBCountRequest(
+    val where: Map<String, Any>? = null
+)
+
+data class ChromaDBQueryEmbeddingRequest(
+    @JsonProperty("query_embeddings")
+    val queryEmbeddings: List<List<Float>>,
+    @JsonProperty("n_results")
+    val nResults: Int = 5,
+    val where: Map<String, Any>? = null
+)
+
 // Response Models
 data class ChromaDBQueryResponse(
     val ids: List<List<String>>,
@@ -38,6 +62,10 @@ data class ChromaDBQueryResponse(
         }
     }
 }
+
+data class ChromaDBCountResponse(
+    val count: Int
+)
 
 data class ChromaDBResult(
     val id: String,

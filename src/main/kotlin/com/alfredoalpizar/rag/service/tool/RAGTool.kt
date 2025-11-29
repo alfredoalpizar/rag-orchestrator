@@ -2,13 +2,15 @@ package com.alfredoalpizar.rag.service.tool
 
 import com.alfredoalpizar.rag.client.chromadb.ChromaDBClient
 import com.alfredoalpizar.rag.model.domain.ToolResult
+import com.alfredoalpizar.rag.service.ingestion.embedding.EmbeddingService
 import kotlinx.coroutines.reactor.awaitSingle
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 
 @Component
 class RAGTool(
-    private val chromaDBClient: ChromaDBClient
+    private val chromaDBClient: ChromaDBClient,
+    private val embeddingService: EmbeddingService
 ) : Tool {
 
     private val logger = KotlinLogging.logger {}
@@ -48,7 +50,12 @@ class RAGTool(
         return try {
             logger.debug { "Performing RAG search: query='$query', maxResults=$maxResults" }
 
-            val results = chromaDBClient.query(query, maxResults).awaitSingle()
+            // Generate query embedding using same provider as ingestion
+            val queryEmbedding = embeddingService.embedSingle(query)
+            logger.debug { "Generated query embedding: ${queryEmbedding.size} dimensions" }
+
+            // Query ChromaDB with embedding
+            val results = chromaDBClient.queryWithEmbedding(queryEmbedding, maxResults).awaitSingle()
 
             if (results.isEmpty()) {
                 logger.debug { "No results found for query: $query" }

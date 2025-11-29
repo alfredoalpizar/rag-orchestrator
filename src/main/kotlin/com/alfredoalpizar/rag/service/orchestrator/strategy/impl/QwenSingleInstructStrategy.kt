@@ -1,8 +1,8 @@
 package com.alfredoalpizar.rag.service.orchestrator.strategy.impl
 
 import com.alfredoalpizar.rag.client.qwen.QwenTool
-import com.alfredoalpizar.rag.config.LoopProperties
-import com.alfredoalpizar.rag.config.LoopProperties.ModelStrategy
+import com.alfredoalpizar.rag.config.Environment
+import com.alfredoalpizar.rag.config.Environment.ModelStrategy
 import com.alfredoalpizar.rag.model.domain.Message
 import com.alfredoalpizar.rag.service.orchestrator.provider.QwenModelProvider
 import com.alfredoalpizar.rag.service.orchestrator.provider.RequestConfig
@@ -30,8 +30,7 @@ import org.springframework.stereotype.Component
     havingValue = "qwen_single_instruct"
 )
 class QwenSingleInstructStrategy(
-    private val provider: QwenModelProvider,
-    private val properties: LoopProperties
+    private val provider: QwenModelProvider
 ) : ModelStrategyExecutor {
 
     private val logger = KotlinLogging.logger {}
@@ -64,8 +63,8 @@ class QwenSingleInstructStrategy(
 
         val requestConfig = RequestConfig(
             streamingEnabled = iterationContext.streamingMode == StreamingMode.PROGRESSIVE,
-            temperature = properties.temperature,
-            maxTokens = properties.maxTokens,
+            temperature = Environment.LOOP_TEMPERATURE,
+            maxTokens = Environment.LOOP_MAX_TOKENS,
             extraParams = mapOf(
                 "useInstructModel" to true,
                 "enableThinking" to false  // No thinking for instruct model

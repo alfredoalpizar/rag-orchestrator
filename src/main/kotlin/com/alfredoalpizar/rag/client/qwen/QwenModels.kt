@@ -12,7 +12,15 @@ data class QwenChatRequest(
     val stream: Boolean = false,
     val tools: List<QwenTool>? = null,
     @JsonProperty("enable_thinking")
-    val enableThinking: Boolean? = null
+    val enableThinking: Boolean? = null,
+    @JsonProperty("top_p")
+    val topP: Double? = null,
+    @JsonProperty("top_k")
+    val topK: Int? = null,
+    @JsonProperty("presence_penalty")
+    val presencePenalty: Double? = null,
+    @JsonProperty("frequency_penalty")
+    val frequencyPenalty: Double? = null
 )
 
 data class QwenMessage(

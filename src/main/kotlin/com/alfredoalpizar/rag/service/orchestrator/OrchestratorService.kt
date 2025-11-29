@@ -1,6 +1,6 @@
 package com.alfredoalpizar.rag.service.orchestrator
 
-import com.alfredoalpizar.rag.config.LoopProperties
+import com.alfredoalpizar.rag.config.Environment
 import com.alfredoalpizar.rag.model.domain.*
 import com.alfredoalpizar.rag.model.response.StreamEvent
 import com.alfredoalpizar.rag.service.context.ContextManager
@@ -30,7 +30,6 @@ class OrchestratorService(
     private val toolRegistry: ToolRegistry,
     private val strategyExecutor: ModelStrategyExecutor,  // Injected based on configuration
     private val finalizerStrategy: FinalizerStrategy,
-    private val properties: LoopProperties,
     private val objectMapper: ObjectMapper
 ) {
     private val logger = KotlinLogging.logger {}
@@ -73,8 +72,6 @@ class OrchestratorService(
                 status = "Loading conversation..."
             ))
 
-            var context = contextManager.loadConversation(conversationId)
-
             // Step 2: Add user message
             emit(StreamEvent.StatusUpdate(
                 conversationId = conversationId,
@@ -82,7 +79,7 @@ class OrchestratorService(
             ))
 
             val userMsg = Message(role = MessageRole.USER, content = userMessage)
-            context = contextManager.addMessage(conversationId, userMsg)
+            var context = contextManager.addMessage(conversationId, userMsg)
 
             // Step 3: Initial RAG search
             emit(StreamEvent.StatusUpdate(
@@ -101,16 +98,16 @@ class OrchestratorService(
             var continueLoop = true
             var finalContent = ""
 
-            while (continueLoop && iteration < properties.maxIterations) {
+            while (continueLoop && iteration < Environment.LOOP_MAX_ITERATIONS) {
                 iteration++
 
                 emit(StreamEvent.StatusUpdate(
                     conversationId = conversationId,
-                    status = "Iteration $iteration of ${properties.maxIterations}..."
+                    status = "Iteration $iteration of ${Environment.LOOP_MAX_ITERATIONS}..."
                 ))
 
                 logger.debug {
-                    "[${metadata.name}] Iteration $iteration/${properties.maxIterations}"
+                    "[${metadata.name}] Iteration $iteration/${Environment.LOOP_MAX_ITERATIONS}"
                 }
 
                 // Execute strategy iteration (STREAMING MODE)
@@ -120,7 +117,7 @@ class OrchestratorService(
                     iterationContext = IterationContext(
                         conversationId = conversationId,
                         iteration = iteration,
-                        maxIterations = properties.maxIterations,
+                        maxIterations = Environment.LOOP_MAX_ITERATIONS,
                         streamingMode = StreamingMode.PROGRESSIVE  // Progressive chunks
                     )
                 ).collect { strategyEvent ->
@@ -129,12 +126,11 @@ class OrchestratorService(
                     when (strategyEvent) {
                         is StrategyEvent.ReasoningChunk -> {
                             // Only some strategies support reasoning
-                            if (properties.streaming.showReasoningTraces) {
+                            if (Environment.LOOP_STREAMING_SHOW_REASONING_TRACES) {
                                 emit(StreamEvent.ReasoningTrace(
                                     conversationId = conversationId,
                                     content = strategyEvent.content,
-                                    stage = com.alfredoalpizar.rag.model.response.ReasoningStage.PLANNING,
-                                    metadata = strategyEvent.metadata
+                                    stage = com.alfredoalpizar.rag.model.response.ReasoningStage.PLANNING
                                 ))
                             }
                         }
@@ -244,7 +240,7 @@ class OrchestratorService(
                             emit(StreamEvent.StatusUpdate(
                                 conversationId = conversationId,
                                 status = strategyEvent.status,
-                                phase = strategyEvent.phase
+                                details = strategyEvent.phase
                             ))
                         }
 
@@ -305,9 +301,8 @@ class OrchestratorService(
         }
 
         try {
-            // Load conversation
-            var context = contextManager.loadConversation(conversationId)
-            context = contextManager.addMessage(conversationId, Message(MessageRole.USER, userMessage))
+            // Add user message (returns updated context)
+            var context = contextManager.addMessage(conversationId, Message(MessageRole.USER, userMessage))
 
             // Initial RAG
             val ragResults = performRAGSearch(userMessage)
@@ -319,10 +314,10 @@ class OrchestratorService(
             var continueLoop = true
             var finalContent = ""
 
-            while (continueLoop && iteration < properties.maxIterations) {
+            while (continueLoop && iteration < Environment.LOOP_MAX_ITERATIONS) {
                 iteration++
 
-                logger.debug { "[${metadata.name}] Iteration $iteration/${properties.maxIterations}" }
+                logger.debug { "[${metadata.name}] Iteration $iteration/${Environment.LOOP_MAX_ITERATIONS}" }
 
                 // Execute strategy iteration (SYNCHRONOUS MODE)
                 strategyExecutor.executeIteration(
@@ -331,7 +326,7 @@ class OrchestratorService(
                     iterationContext = IterationContext(
                         conversationId = conversationId,
                         iteration = iteration,
-                        maxIterations = properties.maxIterations,
+                        maxIterations = Environment.LOOP_MAX_ITERATIONS,
                         streamingMode = StreamingMode.FINAL_ONLY  // Only final results
                     )
                 ).collect { strategyEvent ->

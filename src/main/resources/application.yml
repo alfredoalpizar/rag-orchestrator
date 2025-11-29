@@ -1,3 +1,9 @@
+# ============================================
+# Spring Boot Framework Configuration
+# ============================================
+# All application-specific config moved to Environment.kt
+# Configure via environment variables (12-factor app pattern)
+
 server:
   port: 8080
   error:
@@ -13,7 +19,7 @@ spring:
       write-dates-as-timestamps: false
 
   # Disable database auto-configuration for in-memory mode (default)
-  # Remove these exclusions when using storage-mode: database
+  # Remove these exclusions when using CONVERSATION_STORAGE_MODE=database
   autoconfigure:
     exclude:
       - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
@@ -21,7 +27,7 @@ spring:
       - org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration
 
   # Database Configuration (PostgreSQL)
-  # Uncomment when using storage-mode: database (and remove autoconfigure.exclude above)
+  # Uncomment when using CONVERSATION_STORAGE_MODE=database (and remove autoconfigure.exclude above)
   # datasource:
   #   url: ${DB_URL:jdbc:postgresql://localhost:5432/rag_orchestrator}
   #   username: ${DB_USERNAME:postgres}
@@ -36,79 +42,6 @@ spring:
   #       dialect: org.hibernate.dialect.PostgreSQLDialect
   #       format_sql: true
   #   show-sql: false
-
-# DeepSeek API Configuration
-deepseek:
-  api:
-    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
-    api-key: ${DEEPSEEK_API_KEY:}
-    chat-model: ${DEEPSEEK_CHAT_MODEL:deepseek-chat}
-    reasoning-model: ${DEEPSEEK_REASONING_MODEL:deepseek-reasoner}
-    embedding-model: ${DEEPSEEK_EMBEDDING_MODEL:deepseek-embedding-v2}
-    timeout-seconds: 60
-    max-retries: 3
-
-# Qwen API Configuration
-qwen:
-  api:
-    base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
-    api-key: ${QWEN_API_KEY:}
-    thinking-model: ${QWEN_THINKING_MODEL:qwen-max}
-    instruct-model: ${QWEN_INSTRUCT_MODEL:qwen-plus}
-    embedding-model: ${QWEN_EMBEDDING_MODEL:text-embedding-v2}
-    timeout-seconds: 60
-    max-retries: 3
-
-# ChromaDB Configuration
-chromadb:
-  base-url: ${CHROMADB_BASE_URL:http://localhost:8000}
-  collection-name: ${CHROMADB_COLLECTION:knowledge_base}
-  max-results: 5
-  timeout-seconds: 30
-
-# Loop Configuration
-loop:
-  max-iterations: 10
-  max-tokens: 4096
-  temperature: 0.7
-
-  # Model Strategy Selection
-  # Options: deepseek_single | qwen_single_thinking | qwen_single_instruct
-  model-strategy: deepseek_single  # Change this to switch strategies
-
-  # Legacy: Use DeepSeek reasoner vs chat (only applies to deepseek_single strategy)
-  use-reasoning-model: false
-
-  # Thinking model settings (for qwen thinking models)
-  thinking:
-    timeout-seconds: 120
-    show-reasoning-traces: true  # Show reasoning/thinking process
-
-  # Instruct model settings (for qwen instruct models)
-  instruct:
-    timeout-seconds: 30
-    max-retries: 3
-
-  # Streaming Configuration
-  streaming:
-    mode: status_only  # Options: status_only | full_reasoning
-    show-tool-calls: true
-    show-rag-queries: true
-    show-reasoning-traces: false  # Enable to stream reasoning traces to client
-    buffer-size: 256
-
-# Conversation Management
-conversation:
-  storage-mode: in-memory  # Options: in-memory | database
-  max-context-tokens: 100000
-  compression-threshold: 80000
-  rolling-window-size: 20  # Keep last N messages
-  ttl-hours: 720  # 30 days before archival
-  cleanup-interval-minutes: 60
-  archive:
-    enabled: false  # Enable S3 archival later
-    s3-bucket: ${ARCHIVE_S3_BUCKET:}
-    archive-after-days: 90
 
 # Logging
 logging:
@@ -129,3 +62,17 @@ management:
   endpoint:
     health:
       show-details: always
+
+# ============================================
+# Application Configuration via Environment Variables
+# ============================================
+# All app config is now in Environment.kt and configured via environment variables.
+# See Environment.kt for full list of available configuration options.
+#
+# Examples:
+# - FIREWORKS_API_KEY=your_key
+# - QWEN_THINKING_MODEL=accounts/fireworks/models/qwen3-235b-a22b-instruct-2507
+# - DEEPSEEK_API_KEY=your_key
+# - CHROMADB_BASE_URL=http://localhost:8000
+# - LOOP_MAX_ITERATIONS=10
+# - CONVERSATION_STORAGE_MODE=in-memory

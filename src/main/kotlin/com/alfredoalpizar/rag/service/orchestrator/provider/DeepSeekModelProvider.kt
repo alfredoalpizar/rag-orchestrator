@@ -1,16 +1,14 @@
 package com.alfredoalpizar.rag.service.orchestrator.provider
 
 import com.alfredoalpizar.rag.client.deepseek.*
-import com.alfredoalpizar.rag.config.DeepSeekProperties
-import com.alfredoalpizar.rag.config.LoopProperties
+import com.alfredoalpizar.rag.config.Environment
 import com.alfredoalpizar.rag.model.domain.FunctionCall
 import com.alfredoalpizar.rag.model.domain.Message
 import com.alfredoalpizar.rag.model.domain.MessageRole
 import com.alfredoalpizar.rag.model.domain.ToolCall
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.reactor.asFlow
-import kotlinx.coroutines.reactor.awaitSingle
+import kotlinx.coroutines.reactive.asFlow
+import kotlinx.coroutines.reactive.awaitSingle
 import mu.KotlinLogging
 import org.springframework.stereotype.Component
 
@@ -20,9 +18,7 @@ import org.springframework.stereotype.Component
  */
 @Component
 class DeepSeekModelProvider(
-    private val client: DeepSeekClient,
-    private val deepSeekProperties: DeepSeekProperties,
-    private val loopProperties: LoopProperties
+    private val client: DeepSeekClient
 ) : ModelProvider<DeepSeekChatRequest, DeepSeekChatResponse, DeepSeekStreamChunk> {
 
     private val logger = KotlinLogging.logger {}
@@ -42,9 +38,9 @@ class DeepSeekModelProvider(
     ): DeepSeekChatRequest {
         // Determine model based on configuration
         val model = if (config.extraParams["useReasoningModel"] as? Boolean == true) {
-            deepSeekProperties.reasoningModel
+            Environment.DEEPSEEK_REASONING_MODEL
         } else {
-            deepSeekProperties.chatModel
+            Environment.DEEPSEEK_CHAT_MODEL
         }
 
         logger.debug { "Building DeepSeek request: model=$model, streaming=${config.streamingEnabled}" }
@@ -67,8 +63,8 @@ class DeepSeekModelProvider(
         return DeepSeekChatRequest(
             model = model,
             messages = messages.map { it.toDeepSeekMessage() },
-            temperature = config.temperature ?: loopProperties.temperature,
-            maxTokens = config.maxTokens ?: loopProperties.maxTokens,
+            temperature = config.temperature ?: Environment.LOOP_TEMPERATURE,
+            maxTokens = config.maxTokens ?: Environment.LOOP_MAX_TOKENS,
             stream = config.streamingEnabled,
             tools = deepSeekTools
         )
