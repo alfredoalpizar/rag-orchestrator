@@ -90,17 +90,28 @@ class QwenClientImpl(
                 }
             })
             .bodyToFlux(DataBuffer::class.java)
-            .flatMap { dataBuffer ->
-                // Convert DataBuffer to String and split into complete lines
+            .map { dataBuffer ->
+                // Convert DataBuffer to String
                 val content = dataBuffer.toString(StandardCharsets.UTF_8)
                 DataBufferUtils.release(dataBuffer) // Release buffer to prevent memory leaks
-
-                // Split by newlines - SSE sends one event per line
-                // Empty lines are kept to maintain SSE protocol integrity
-                val lines = content.lines()
-                Flux.fromIterable(lines)
+                content
             }
-            .filter { line -> line.isNotEmpty() } // Remove empty lines
+            // SSE line buffering: accumulate data and emit only complete lines
+            // This handles the case where JSON is split across TCP packet boundaries
+            .scan(SseBuffer("", emptyList())) { buffer, chunk ->
+                val combined = buffer.pending + chunk
+                val lines = combined.split("\n")
+                // All lines except the last are complete; the last may be incomplete
+                if (lines.size > 1) {
+                    val completeLines = lines.dropLast(1).filter { it.isNotBlank() }
+                    val pending = lines.last()
+                    SseBuffer(pending, completeLines)
+                } else {
+                    // No newline in this chunk yet, keep accumulating
+                    SseBuffer(combined, emptyList())
+                }
+            }
+            .flatMapIterable { buffer -> buffer.completeLines }
             .doOnNext { line ->
                 logger.debug { "SSE line received (length=${line.length}): ${line.take(100)}" }
             }
@@ -119,6 +130,14 @@ class QwenClientImpl(
             }
             .doOnNext { chunk ->
                 logger.debug { "Chunk parsed: choices=${chunk.choices.size}" }
+            }
+            // Accumulate tool calls across chunks - they arrive incrementally (name first, then arguments)
+            .scan(ToolCallAccumulator()) { accumulator, chunk ->
+                accumulateToolCalls(accumulator, chunk)
+            }
+            .map { accumulator ->
+                // Return the chunk, potentially with assembled tool calls if complete
+                assembleChunkWithToolCalls(accumulator)
             }
             .timeout(Duration.ofSeconds(Environment.QWEN_TIMEOUT_SECONDS))
             .doOnComplete {
@@ -200,6 +219,95 @@ class QwenClientImpl(
                 logger.warn { "Retrying Qwen API call, attempt ${signal.totalRetries() + 1}" }
             }
     }
+
+    /**
+     * Accumulate tool call deltas from a chunk into the accumulator.
+     * Tool calls stream incrementally: first the id/name, then arguments piece by piece.
+     */
+    private fun accumulateToolCalls(
+        accumulator: ToolCallAccumulator,
+        chunk: QwenStreamChunk
+    ): ToolCallAccumulator {
+        val choice = chunk.choices.firstOrNull()
+        val toolCallDeltas = choice?.delta?.toolCalls
+
+        // Accumulate any tool call deltas
+        toolCallDeltas?.forEach { delta ->
+            val index = delta.index ?: 0
+            val builder = accumulator.builders.getOrPut(index) { ToolCallBuilder() }
+
+            delta.id?.let { builder.id = it }
+            delta.type?.let { builder.type = it }
+            delta.function?.name?.let { builder.name = it }
+            delta.function?.arguments?.let { builder.arguments.append(it) }
+        }
+
+        // Check if this is the final chunk
+        val isComplete = choice?.finishReason != null
+
+        return ToolCallAccumulator(
+            builders = accumulator.builders,
+            currentChunk = chunk,
+            isComplete = isComplete
+        )
+    }
+
+    /**
+     * Assemble the final chunk with complete tool calls if the stream is finished.
+     * For intermediate chunks, return them with tool_calls nulled out.
+     */
+    private fun assembleChunkWithToolCalls(accumulator: ToolCallAccumulator): QwenStreamChunk {
+        val chunk = accumulator.currentChunk ?: return QwenStreamChunk(
+            id = "",
+            model = "",
+            choices = emptyList(),
+            usage = null
+        )
+
+        // If not complete, return chunk with tool_calls stripped (they're partial)
+        if (!accumulator.isComplete) {
+            return chunk.copy(
+                choices = chunk.choices.map { choice ->
+                    choice.copy(
+                        delta = choice.delta.copy(toolCalls = null)
+                    )
+                }
+            )
+        }
+
+        // Stream is complete - assemble full tool calls from accumulated data
+        val completeToolCalls = accumulator.builders.values
+            .filter { it.id != null && it.name != null }
+            .map { builder ->
+                QwenToolCall(
+                    id = builder.id,
+                    type = builder.type ?: "function",
+                    index = null,
+                    function = QwenFunctionCall(
+                        name = builder.name,
+                        arguments = builder.arguments.toString()
+                    )
+                )
+            }
+
+        logger.debug {
+            "Tool call accumulation complete: ${completeToolCalls.size} tool calls assembled"
+        }
+        completeToolCalls.forEach { tc ->
+            logger.debug { "  - ${tc.function?.name}(${tc.function?.arguments?.take(100)}...)" }
+        }
+
+        // Return final chunk with assembled tool calls
+        return chunk.copy(
+            choices = chunk.choices.map { choice ->
+                choice.copy(
+                    delta = choice.delta.copy(
+                        toolCalls = if (completeToolCalls.isNotEmpty()) completeToolCalls else null
+                    )
+                )
+            }
+        )
+    }
 }
 
 class QwenApiException(
@@ -207,3 +315,33 @@ class QwenApiException(
     val statusCode: Int,
     val responseBody: String
 ) : RuntimeException(message)
+
+/**
+ * Buffer for accumulating SSE data across TCP chunk boundaries.
+ * SSE events can be split across multiple network packets, so we need to
+ * buffer incomplete lines until we receive a complete line ending with newline.
+ */
+private data class SseBuffer(
+    val pending: String,        // Incomplete line data waiting for more chunks
+    val completeLines: List<String>  // Complete lines ready to be emitted
+)
+
+/**
+ * Accumulator for tool calls that stream incrementally.
+ * Tool calls arrive in pieces: first id/name, then arguments chunk by chunk.
+ */
+private data class ToolCallAccumulator(
+    val builders: MutableMap<Int, ToolCallBuilder> = mutableMapOf(),
+    val currentChunk: QwenStreamChunk? = null,
+    val isComplete: Boolean = false
+)
+
+/**
+ * Builder for assembling a single tool call from streamed deltas.
+ */
+private class ToolCallBuilder {
+    var id: String? = null
+    var type: String? = null
+    var name: String? = null
+    val arguments: StringBuilder = StringBuilder()
+}

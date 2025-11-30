@@ -19,7 +19,7 @@ import org.springframework.stereotype.Component
  * Uses Qwen thinking model (qwen-max) for all iterations.
  * Supports reasoning traces and deep thinking.
  * Best for complex reasoning tasks where quality > speed.
- *
+*
  * Selection: This is the default. Set Environment.LOOP_MODEL_STRATEGY = "qwen_single_thinking"
  * Requires: FIREWORKS_API_KEY to be configured (Qwen via Fireworks AI)
  */
@@ -172,6 +172,36 @@ class QwenSingleThinkingStrategy(
                             "clean_answer_length=${cleanAnswer.length}, " +
                             "tool_calls=${accumulatedToolCalls.size}, " +
                             "tokens=$totalTokens"
+                }
+
+                // === DEBUG: Log full accumulated response for this iteration ===
+                logger.info {
+                    """
+                    |
+                    |╔══════════════════════════════════════════════════════════════════════════════╗
+                    |║ QWEN ITERATION ${context.iteration} COMPLETE - FULL RESPONSE
+                    |╠══════════════════════════════════════════════════════════════════════════════╣
+                    |║ Conversation: ${context.conversationId}
+                    |║ Finish Reason: ${parsed.finishReason}
+                    |║ Total Tokens: $totalTokens
+                    |╠══════════════════════════════════════════════════════════════════════════════╣
+                    |║ REASONING CONTENT (reasoning_content field, ${accumulatedReasoning.length} chars):
+                    |╟──────────────────────────────────────────────────────────────────────────────╢
+                    |${accumulatedReasoning.toString().lines().joinToString("\n") { "║ $it" }}
+                    |╠══════════════════════════════════════════════════════════════════════════════╣
+                    |║ THINKING TAGS (<think>...</think> extracted, ${thinkingContent.length} chars):
+                    |╟──────────────────────────────────────────────────────────────────────────────╢
+                    |${thinkingContent.lines().joinToString("\n") { "║ $it" }}
+                    |╠══════════════════════════════════════════════════════════════════════════════╣
+                    |║ FINAL ANSWER (clean content, ${cleanAnswer.length} chars):
+                    |╟──────────────────────────────────────────────────────────────────────────────╢
+                    |${cleanAnswer.lines().joinToString("\n") { "║ $it" }}
+                    |╠══════════════════════════════════════════════════════════════════════════════╣
+                    |║ TOOL CALLS (${accumulatedToolCalls.size}):
+                    |╟──────────────────────────────────────────────────────────────────────────────╢
+                    |${if (accumulatedToolCalls.isEmpty()) "║ (none)" else accumulatedToolCalls.joinToString("\n") { "║ - ${it.function.name}(${it.function.arguments})" }}
+                    |╚══════════════════════════════════════════════════════════════════════════════╝
+                    """.trimMargin()
                 }
 
                 // Emit thinking traces if present and enabled

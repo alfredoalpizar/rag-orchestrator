@@ -46,14 +46,15 @@ data class QwenFunction(
 )
 
 data class QwenToolCall(
-    val id: String,
-    val type: String,
-    val function: QwenFunctionCall
+    val id: String? = null,       // May be null in streaming chunks
+    val type: String? = null,     // May be null in streaming chunks
+    val index: Int? = null,       // Index for streaming tool call accumulation
+    val function: QwenFunctionCall? = null  // May be null in streaming chunks
 )
 
 data class QwenFunctionCall(
-    val name: String,
-    val arguments: String
+    val name: String? = null,      // Arrives first in streaming
+    val arguments: String? = null  // Arrives in subsequent chunks
 )
 
 // Response Models
