@@ -10,12 +10,16 @@ export interface CreateConversationRequest {
 }
 
 export interface ConversationResponse {
-  id: string;
+  conversationId: string;
   callerId: string;
+  status?: string;
   createdAt: string;
   updatedAt: string;
   messageCount: number;
+  toolCallsCount?: number;
+  totalTokens?: number;
   title?: string;
+  lastMessageAt?: string | null;
 }
 
 // Comprehensive SSE Event Types
@@ -76,13 +80,10 @@ export interface StageTransitionEvent {
 
 export interface CompletedEvent {
   type: 'Completed';
-  metrics: {
-    totalTokens?: number;
-    promptTokens?: number;
-    completionTokens?: number;
-    iterations?: number;
-    processingTimeMs?: number;
-  };
+  conversationId: string;
+  iterationsUsed: number;
+  tokensUsed: number;
+  timestamp: string;
 }
 
 export interface ErrorEvent {

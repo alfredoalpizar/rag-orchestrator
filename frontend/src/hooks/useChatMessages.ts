@@ -166,7 +166,10 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
                 ...msg,
                 metadata: {
                   ...msg.metadata,
-                  metrics: event.metrics
+                  metrics: {
+                    iterations: event.iterationsUsed,
+                    totalTokens: event.tokensUsed
+                  }
                 }
               }
             : msg
