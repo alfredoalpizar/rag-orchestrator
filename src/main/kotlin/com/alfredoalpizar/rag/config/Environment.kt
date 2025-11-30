@@ -230,7 +230,7 @@ object Environment {
         System.getenv("LOOP_STREAMING_SHOW_RAG_QUERIES")?.toBoolean() ?: true
 
     val LOOP_STREAMING_SHOW_REASONING_TRACES: Boolean =
-        System.getenv("LOOP_STREAMING_SHOW_REASONING_TRACES")?.toBoolean() ?: false
+        System.getenv("LOOP_STREAMING_SHOW_REASONING_TRACES")?.toBoolean() ?: true
 
     val LOOP_STREAMING_BUFFER_SIZE: Int =
         System.getenv("LOOP_STREAMING_BUFFER_SIZE")?.toIntOrNull() ?: 256

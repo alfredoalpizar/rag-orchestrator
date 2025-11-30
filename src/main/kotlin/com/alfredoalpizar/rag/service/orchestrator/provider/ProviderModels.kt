@@ -110,6 +110,12 @@ data class RequestConfig(
     val maxTokens: Int?,
 
     /**
+     * Reasoning effort for thinking models: "none", "low", "medium", "high"
+     * Use "none" to disable thinking (for finalize_answer)
+     */
+    val reasoningEffort: String? = null,
+
+    /**
      * Additional provider-specific parameters
      */
     val extraParams: Map<String, Any> = emptyMap()

@@ -1,8 +1,10 @@
 package com.alfredoalpizar.rag.client.qwen
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 
 // Request Models
+@JsonInclude(JsonInclude.Include.NON_NULL)  // Exclude null fields from JSON (Fireworks rejects tools: null)
 data class QwenChatRequest(
     val model: String,
     val messages: List<QwenMessage>,
@@ -20,7 +22,11 @@ data class QwenChatRequest(
     @JsonProperty("presence_penalty")
     val presencePenalty: Double? = null,
     @JsonProperty("frequency_penalty")
-    val frequencyPenalty: Double? = null
+    val frequencyPenalty: Double? = null,
+    // Reasoning effort control for thinking models: "none", "low", "medium", "high"
+    // Use "none" for finalize_answer to get clean output without thinking
+    @JsonProperty("reasoning_effort")
+    val reasoningEffort: String? = null
 )
 
 data class QwenMessage(

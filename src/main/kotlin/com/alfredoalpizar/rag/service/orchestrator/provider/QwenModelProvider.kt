@@ -52,7 +52,8 @@ class QwenModelProvider(
 
         logger.debug {
             "Building Qwen request: model=$model, " +
-                    "streaming=${config.streamingEnabled}"
+                    "streaming=${config.streamingEnabled}, " +
+                    "reasoningEffort=${config.reasoningEffort ?: "default"}"
         }
 
         // Convert tool definitions to Qwen format
@@ -76,7 +77,8 @@ class QwenModelProvider(
             temperature = config.temperature ?: Environment.LOOP_TEMPERATURE,
             maxTokens = config.maxTokens ?: Environment.LOOP_MAX_TOKENS,
             stream = config.streamingEnabled,
-            tools = qwenTools
+            tools = qwenTools,
+            reasoningEffort = config.reasoningEffort  // Pass through for finalize_answer (use "none")
         )
     }
 
