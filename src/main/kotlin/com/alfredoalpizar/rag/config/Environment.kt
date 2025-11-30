@@ -115,8 +115,11 @@ object Environment {
         System.getenv("REINDEX_WORKER_THREADS")?.toIntOrNull() ?: 10
 
     // ============================================
-    // Fireworks/Qwen API Configuration
+    // Fireworks AI Configuration (Qwen Models)
     // ============================================
+    // Fireworks AI provides OpenAI-compatible API for Qwen models
+    // API Endpoint: https://api.fireworks.ai/inference/v1
+    // Supports: streaming, thinking/reasoning models, tool calling
 
     val FIREWORKS_BASE_URL: String =
         System.getenv("FIREWORKS_BASE_URL") ?: "https://api.fireworks.ai/inference/v1"
@@ -125,7 +128,7 @@ object Environment {
         System.getenv("FIREWORKS_API_KEY") ?: ""
 
     val QWEN_THINKING_MODEL: String =
-        System.getenv("QWEN_THINKING_MODEL") ?: "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
+        System.getenv("QWEN_THINKING_MODEL") ?: "accounts/fireworks/models/qwen3-235b-a22b-thinking-2507"
 
     val QWEN_INSTRUCT_MODEL: String =
         System.getenv("QWEN_INSTRUCT_MODEL") ?: "accounts/fireworks/models/qwen3-235b-a22b-instruct-2507"
@@ -200,7 +203,7 @@ object Environment {
         System.getenv("LOOP_TEMPERATURE")?.toDoubleOrNull() ?: 0.7
 
     val LOOP_MODEL_STRATEGY: String =
-        System.getenv("LOOP_MODEL_STRATEGY") ?: "qwen_single_instruct"
+        System.getenv("LOOP_MODEL_STRATEGY") ?: "qwen_single_thinking"
 
     val LOOP_USE_REASONING_MODEL: Boolean =
         System.getenv("LOOP_USE_REASONING_MODEL")?.toBoolean() ?: false
