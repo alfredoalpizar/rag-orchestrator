@@ -41,7 +41,7 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
           <div className="mt-2 space-y-2">
             <div className="text-xs">
               <strong className="text-gray-700">Arguments:</strong>
-              <pre className="bg-gray-800 text-gray-100 p-2 rounded mt-1 overflow-x-auto text-xs">
+              <pre className="bg-gray-800 text-gray-100 p-2 rounded mt-1 text-xs whitespace-pre-wrap break-words">
                 {JSON.stringify(toolCall.arguments, null, 2)}
               </pre>
             </div>
@@ -49,7 +49,7 @@ export function ToolCallDisplay({ toolCall }: ToolCallDisplayProps) {
             {toolCall.result !== undefined && (
               <div className="text-xs">
                 <strong className="text-gray-700">Result:</strong>
-                <pre className="bg-gray-800 text-gray-100 p-2 rounded mt-1 overflow-x-auto text-xs">
+                <pre className="bg-gray-800 text-gray-100 p-2 rounded mt-1 text-xs whitespace-pre-wrap break-words">
                   {JSON.stringify(toolCall.result, null, 2)}
                 </pre>
               </div>
