@@ -6,9 +6,10 @@ import { AssistantMessage } from './AssistantMessage';
 
 interface MessageListProps {
   messages: ChatMessage[];
+  currentIteration?: number | null;  // For highlighting active iteration
 }
 
-export function MessageList({ messages }: MessageListProps) {
+export function MessageList({ messages, currentIteration }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
@@ -49,7 +50,7 @@ export function MessageList({ messages }: MessageListProps) {
           {message.role === 'user' ? (
             <MessageItem message={message} />
           ) : (
-            <AssistantMessage message={message} />
+            <AssistantMessage message={message} currentIteration={currentIteration} />
           )}
         </div>
       ))}

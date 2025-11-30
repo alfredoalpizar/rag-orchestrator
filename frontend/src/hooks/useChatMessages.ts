@@ -1,12 +1,13 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import api from '../services/api';
-import type { ChatMessage, StreamEvent, ToolCall } from '../types/api.types';
+import type { ChatMessage, StreamEvent, ToolCall, IterationData } from '../types/api.types';
 
 interface UseChatMessagesResult {
   messages: ChatMessage[];
   error: string | null;
   isStreaming: boolean;
   currentStatus: string | null;
+  currentIteration: number | null;  // Track current iteration for UI
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => void;
 }
@@ -16,10 +17,13 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
   const [error, setError] = useState<string | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [currentStatus, setCurrentStatus] = useState<string | null>(null);
+  const [currentIteration, setCurrentIteration] = useState<number | null>(null);
 
   const streamingMessageIdRef = useRef<string | null>(null);
   const cleanupFnRef = useRef<(() => void) | null>(null);
   const toolCallsMapRef = useRef<Map<string, ToolCall>>(new Map());
+  // Track iteration data during streaming
+  const iterationDataRef = useRef<Map<number, IterationData>>(new Map());
 
   // Cleanup on unmount or conversation change
   useEffect(() => {
@@ -62,7 +66,9 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
 
       setIsStreaming(true);
       setError(null);
+      setCurrentIteration(null);
       toolCallsMapRef.current.clear();
+      iterationDataRef.current.clear();
 
       // 3. Start streaming
       const cleanup = await api.streamMessage(
@@ -85,52 +91,150 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
     }
   }, [conversationId]);
 
-  const handleStreamEvent = (event: StreamEvent, messageId: string) => {
-    switch (event.type) {
-      case 'ResponseChunk':
-        setMessages(prev => prev.map(msg =>
-          msg.id === messageId
-            ? { ...msg, content: event.content }
-            : msg
-        ));
-        break;
+  // Helper to get or create iteration data
+  const getOrCreateIterationData = (iteration: number): IterationData => {
+    let data = iterationDataRef.current.get(iteration);
+    if (!data) {
+      data = { iteration, toolCalls: [] };
+      iterationDataRef.current.set(iteration, data);
+    }
+    return data;
+  };
 
-      case 'ReasoningTrace':
+  // Helper to update message with current iteration data
+  const updateMessageIterationData = (messageId: string) => {
+    const iterationDataArray = Array.from(iterationDataRef.current.values())
+      .sort((a, b) => a.iteration - b.iteration);
+
+    setMessages(prev => prev.map(msg =>
+      msg.id === messageId
+        ? {
+            ...msg,
+            metadata: {
+              ...msg.metadata,
+              iterationData: iterationDataArray
+            }
+          }
+        : msg
+    ));
+  };
+
+  const handleStreamEvent = (event: StreamEvent, messageId: string) => {
+    // DEBUG: Log all incoming events with iteration info
+    console.log(`[SSE] Event: ${event.type}`, {
+      type: event.type,
+      iteration: 'iteration' in event ? event.iteration : undefined,
+      isFinalAnswer: 'isFinalAnswer' in event ? event.isFinalAnswer : undefined,
+      contentLength: 'content' in event ? (event.content as string)?.length : undefined,
+      contentPreview: 'content' in event ? (event.content as string)?.substring(0, 80) : undefined,
+    });
+
+    switch (event.type) {
+      case 'ResponseChunk': {
+        const iteration = event.iteration;
+        const isFinalAnswer = event.isFinalAnswer ?? false;
+
+        if (isFinalAnswer) {
+          // Final answer - append to main content
+          console.log(`[SSE] ResponseChunk (FINAL): "${event.content.substring(0, 50)}..."`);
+          setMessages(prev => prev.map(msg =>
+            msg.id === messageId
+              ? { ...msg, content: (msg.content || '') + event.content }
+              : msg
+          ));
+        } else if (iteration) {
+          // Intermediate content for this iteration
+          console.log(`[SSE] ResponseChunk (iter ${iteration}): "${event.content.substring(0, 50)}..."`);
+          const iterData = getOrCreateIterationData(iteration);
+          iterData.intermediateContent = (iterData.intermediateContent || '') + event.content;
+          updateMessageIterationData(messageId);
+        } else {
+          // Legacy behavior - append to main content
+          setMessages(prev => prev.map(msg =>
+            msg.id === messageId
+              ? { ...msg, content: (msg.content || '') + event.content }
+              : msg
+          ));
+        }
+        break;
+      }
+
+      case 'ReasoningTrace': {
+        const iteration = event.iteration;
+        console.log(`[SSE] ReasoningTrace (iter ${iteration}): "${event.content.substring(0, 50)}..."`);
+
+        if (iteration) {
+          // Add reasoning to specific iteration
+          const iterData = getOrCreateIterationData(iteration);
+          iterData.reasoning = (iterData.reasoning || '') + event.content;
+          updateMessageIterationData(messageId);
+        }
+
+        // Also update legacy reasoningContent for backward compatibility
         setMessages(prev => prev.map(msg =>
           msg.id === messageId
             ? {
                 ...msg,
                 metadata: {
                   ...msg.metadata,
-                  reasoning: [...(msg.metadata?.reasoning || []), event.content]
+                  reasoningContent: (msg.metadata?.reasoningContent || '') + event.content
                 }
               }
             : msg
         ));
         break;
+      }
 
       case 'ToolCallStart': {
+        const iteration = event.iteration;
         const toolCall: ToolCall = {
           id: event.callId || `tool-${Date.now()}`,
           name: event.toolName,
           arguments: event.arguments,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          iteration: iteration
         };
+
         toolCallsMapRef.current.set(toolCall.id, toolCall);
+
+        // Add to iteration data if we have an iteration
+        if (iteration) {
+          const iterData = getOrCreateIterationData(iteration);
+          iterData.toolCalls = iterData.toolCalls || [];
+          iterData.toolCalls.push(toolCall);
+          updateMessageIterationData(messageId);
+        }
+
         updateMessageToolCalls(messageId);
         break;
       }
 
       case 'ToolCallResult': {
         const callId = event.callId || '';
+        const iteration = event.iteration;
         const existingCall = toolCallsMapRef.current.get(callId);
+
         if (existingCall) {
-          toolCallsMapRef.current.set(callId, {
+          const updatedCall = {
             ...existingCall,
             result: event.result,
             success: event.success,
             error: event.error
-          });
+          };
+          toolCallsMapRef.current.set(callId, updatedCall);
+
+          // Update in iteration data if we have an iteration
+          if (iteration) {
+            const iterData = getOrCreateIterationData(iteration);
+            if (iterData.toolCalls) {
+              const idx = iterData.toolCalls.findIndex(tc => tc.id === callId);
+              if (idx >= 0) {
+                iterData.toolCalls[idx] = updatedCall;
+                updateMessageIterationData(messageId);
+              }
+            }
+          }
+
           updateMessageToolCalls(messageId);
         }
         break;
@@ -152,10 +256,13 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
 
       case 'StatusUpdate':
         setCurrentStatus(event.status);
+        // Track current iteration for UI display
+        if (event.iteration) {
+          setCurrentIteration(event.iteration);
+        }
         break;
 
       case 'StageTransition':
-        // Could display or log
         console.log(`Stage: ${event.fromStage} → ${event.toStage}`);
         break;
 
@@ -169,13 +276,17 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
                   metrics: {
                     iterations: event.iterationsUsed,
                     totalTokens: event.tokensUsed
-                  }
+                  },
+                  // Finalize iteration data
+                  iterationData: Array.from(iterationDataRef.current.values())
+                    .sort((a, b) => a.iteration - b.iteration)
                 }
               }
             : msg
         ));
         setIsStreaming(false);
         setCurrentStatus(null);
+        setCurrentIteration(null);
         streamingMessageIdRef.current = null;
         break;
 
@@ -183,6 +294,7 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
         setError(event.error);
         setIsStreaming(false);
         setCurrentStatus(null);
+        setCurrentIteration(null);
         streamingMessageIdRef.current = null;
         break;
     }
@@ -215,6 +327,7 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
     error,
     isStreaming,
     currentStatus,
+    currentIteration,
     sendMessage,
     clearMessages
   };

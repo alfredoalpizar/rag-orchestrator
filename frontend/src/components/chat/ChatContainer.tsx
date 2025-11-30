@@ -8,6 +8,7 @@ interface ChatContainerProps {
   onSendMessage: (message: string) => void;
   isStreaming: boolean;
   currentStatus: string | null;
+  currentIteration: number | null;  // For highlighting active iteration
   error: string | null;
   conversationId: string | null;
 }
@@ -17,6 +18,7 @@ export function ChatContainer({
   onSendMessage,
   isStreaming,
   currentStatus,
+  currentIteration,
   error,
   conversationId
 }: ChatContainerProps) {
@@ -45,7 +47,7 @@ export function ChatContainer({
       )}
 
       {/* Messages */}
-      <MessageList messages={messages} />
+      <MessageList messages={messages} currentIteration={currentIteration} />
 
       {/* Status Indicator */}
       {isStreaming && currentStatus && <StatusIndicator status={currentStatus} />}

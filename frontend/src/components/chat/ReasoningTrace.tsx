@@ -1,13 +1,17 @@
 import { useState } from 'react';
 
 interface ReasoningTraceProps {
-  reasoning: string[];
+  reasoning?: string[];
+  reasoningContent?: string;  // Streaming content as a single string
 }
 
-export function ReasoningTrace({ reasoning }: ReasoningTraceProps) {
+export function ReasoningTrace({ reasoning, reasoningContent }: ReasoningTraceProps) {
   const [collapsed, setCollapsed] = useState(false);
 
-  if (!reasoning || reasoning.length === 0) {
+  // Combine array-based reasoning with streaming content
+  const displayContent = reasoningContent || (reasoning && reasoning.length > 0 ? reasoning.join('\n\n') : '');
+
+  if (!displayContent) {
     return null;
   }
 
@@ -22,7 +26,7 @@ export function ReasoningTrace({ reasoning }: ReasoningTraceProps) {
       </button>
       {!collapsed && (
         <div className="px-3 py-2 text-sm text-gray-700 italic whitespace-pre-wrap border-t border-purple-200">
-          {reasoning.join('\n\n')}
+          {displayContent}
         </div>
       )}
     </div>

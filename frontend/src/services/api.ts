@@ -106,10 +106,16 @@ class ApiService {
 
             // Process complete lines
             for (const line of lines) {
+              // DEBUG: Log raw SSE lines
+              if (line.trim()) {
+                console.log('[SSE RAW]', line.substring(0, 120));
+              }
+
               // Parse SSE event type (handle both 'event:' and 'event: ' per SSE spec)
               if (line.startsWith('event:')) {
                 const value = line.slice(6);
                 currentEventType = value.startsWith(' ') ? value.slice(1).trim() : value.trim();
+                console.log('[SSE] Event type:', currentEventType);
               }
 
               // Parse SSE data (handle both 'data:' and 'data: ' per SSE spec)
@@ -128,6 +134,8 @@ class ApiService {
                     ...eventData,
                     type: currentEventType || 'Unknown'
                   } as StreamEvent;
+
+                  console.log('[SSE] Parsed event:', event.type, 'content' in event ? `(${(event as any).content?.length} chars)` : '');
 
                   // Reset event type for next event
                   currentEventType = null;

@@ -37,6 +37,7 @@ export type StreamEvent =
 export interface StatusUpdateEvent {
   type: 'StatusUpdate';
   status: string;
+  iteration?: number;  // Which agentic loop iteration this belongs to
   timestamp?: string;
 }
 
@@ -45,6 +46,7 @@ export interface ToolCallStartEvent {
   toolName: string;
   arguments: Record<string, any>;
   callId?: string;
+  iteration?: number;  // Which agentic loop iteration this belongs to
 }
 
 export interface ToolCallResultEvent {
@@ -53,12 +55,15 @@ export interface ToolCallResultEvent {
   result: any;
   success: boolean;
   error?: string;
+  iteration?: number;  // Which agentic loop iteration this belongs to
 }
 
 export interface ResponseChunkEvent {
   type: 'ResponseChunk';
   content: string;
   delta?: string;
+  iteration?: number;  // Which agentic loop iteration this belongs to
+  isFinalAnswer?: boolean;  // True when streaming from finalize_answer
 }
 
 export interface ReasoningTraceEvent {
@@ -66,6 +71,7 @@ export interface ReasoningTraceEvent {
   conversationId: string;
   content: string;  // The reasoning content from backend
   stage: 'PLANNING' | 'SYNTHESIS';
+  iteration?: number;  // Which agentic loop iteration this belongs to
   timestamp: string;
 }
 
@@ -103,10 +109,24 @@ export interface ChatMessage {
   timestamp: string;
   metadata?: {
     reasoning?: string[];
+    reasoningContent?: string;  // Streaming thinking content
     toolCalls?: ToolCall[];
     executionPlan?: string;
-    metrics?: CompletedEvent['metrics'];
+    metrics?: {
+      iterations?: number;
+      totalTokens?: number;
+    };
+    // Iteration-based organization for multi-iteration agentic loops
+    iterationData?: IterationData[];
   };
+}
+
+// Data for a single iteration in the agentic loop
+export interface IterationData {
+  iteration: number;
+  reasoning?: string;  // Thinking content for this iteration
+  toolCalls?: ToolCall[];  // Tool calls made in this iteration
+  intermediateContent?: string;  // Any content output during this iteration (not final answer)
 }
 
 export interface ToolCall {
@@ -117,6 +137,7 @@ export interface ToolCall {
   success?: boolean;
   error?: string;
   timestamp?: string;
+  iteration?: number;  // Which agentic loop iteration this belongs to
 }
 
 // Document Types

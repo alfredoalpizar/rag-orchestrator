@@ -23,6 +23,7 @@ export default function ChatPage() {
     error,
     isStreaming,
     currentStatus,
+    currentIteration,
     sendMessage,
     clearMessages,
   } = useChatMessages(conversationId || null);
@@ -88,6 +89,7 @@ export default function ChatPage() {
         onSendMessage={handleSendMessage}
         isStreaming={isStreaming}
         currentStatus={currentStatus}
+        currentIteration={currentIteration}
         error={error}
         conversationId={conversationId || null}
       />
