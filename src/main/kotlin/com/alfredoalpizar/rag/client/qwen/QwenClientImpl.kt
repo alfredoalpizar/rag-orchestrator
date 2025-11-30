@@ -4,6 +4,8 @@ import com.alfredoalpizar.rag.config.Environment
 import com.fasterxml.jackson.databind.ObjectMapper
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.core.io.buffer.DataBuffer
+import org.springframework.core.io.buffer.DataBufferUtils
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.WebClientRequestException
@@ -11,6 +13,7 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.util.retry.Retry
+import java.nio.charset.StandardCharsets
 import java.time.Duration
 import java.util.concurrent.TimeoutException
 
@@ -56,7 +59,19 @@ class QwenClientImpl(
     override fun chatStream(request: QwenChatRequest): Flux<QwenStreamChunk> {
         val streamRequest = request.copy(stream = true)
 
-        logger.debug { "Starting chat stream to Qwen API: model=${streamRequest.model}" }
+        logger.info {
+            "Starting chat stream to Qwen API: model=${streamRequest.model}, " +
+            "messages=${streamRequest.messages.size}, " +
+            "tools=${streamRequest.tools?.size ?: 0}, " +
+            "temperature=${streamRequest.temperature}, " +
+            "stream=${streamRequest.stream}"
+        }
+
+        // Log first message to see context
+        if (streamRequest.messages.isNotEmpty()) {
+            val firstMsg = streamRequest.messages.first()
+            logger.debug { "First message: role=${firstMsg.role}, content=${firstMsg.content?.take(200)}" }
+        }
 
         return webClient.post()
             .uri("/chat/completions")
@@ -74,16 +89,40 @@ class QwenClientImpl(
                     ))
                 }
             })
-            .bodyToFlux(String::class.java)
+            .bodyToFlux(DataBuffer::class.java)
+            .flatMap { dataBuffer ->
+                // Convert DataBuffer to String and split into complete lines
+                val content = dataBuffer.toString(StandardCharsets.UTF_8)
+                DataBufferUtils.release(dataBuffer) // Release buffer to prevent memory leaks
+
+                // Split by newlines - SSE sends one event per line
+                // Empty lines are kept to maintain SSE protocol integrity
+                val lines = content.lines()
+                Flux.fromIterable(lines)
+            }
+            .filter { line -> line.isNotEmpty() } // Remove empty lines
+            .doOnNext { line ->
+                logger.debug { "SSE line received (length=${line.length}): ${line.take(100)}" }
+            }
             .filter { line ->
-                line.startsWith("data: ") && line != "data: [DONE]"
+                val shouldKeep = line.startsWith("data: ") && line != "data: [DONE]"
+                if (!shouldKeep && line.isNotEmpty()) {
+                    logger.debug { "Filtered out: ${line.take(100)}" }
+                }
+                shouldKeep
+            }
+            .doOnNext { line ->
+                logger.debug { "Processing valid SSE data line: ${line.take(100)}" }
             }
             .map { line ->
                 parseStreamChunk(line)
             }
+            .doOnNext { chunk ->
+                logger.debug { "Chunk parsed: choices=${chunk.choices.size}" }
+            }
             .timeout(Duration.ofSeconds(Environment.QWEN_TIMEOUT_SECONDS))
             .doOnComplete {
-                logger.debug { "Chat stream completed" }
+                logger.info { "Chat stream completed successfully" }
             }
             .doOnError { error ->
                 logger.error(error) { "Error in Qwen chat stream" }
@@ -130,7 +169,24 @@ class QwenClientImpl(
 
     private fun parseStreamChunk(line: String): QwenStreamChunk {
         val json = line.removePrefix("data: ").trim()
-        return objectMapper.readValue(json, QwenStreamChunk::class.java)
+
+        // DEBUG: Log raw JSON to see what Fireworks is actually sending
+        logger.trace { "Raw stream chunk JSON: $json" }
+
+        val chunk = objectMapper.readValue(json, QwenStreamChunk::class.java)
+
+        // DEBUG: Log parsed chunk to see if reasoning_content is present
+        if (chunk.choices.isNotEmpty()) {
+            val choice = chunk.choices.first()
+            logger.trace {
+                "Parsed chunk - role=${choice.delta?.role}, " +
+                        "contentDelta=${choice.delta?.content?.take(30)}, " +
+                        "reasoningDelta=${choice.delta?.reasoningContent?.take(30)}, " +
+                        "finishReason=${choice.finishReason}"
+            }
+        }
+
+        return chunk
     }
 
     private fun retrySpec(): Retry {

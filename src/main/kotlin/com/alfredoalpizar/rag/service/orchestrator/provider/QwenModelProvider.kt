@@ -47,14 +47,12 @@ class QwenModelProvider(
             else -> Environment.QWEN_THINKING_MODEL  // Default to thinking model
         }
 
-        // Enable thinking for thinking models
-        val enableThinking = config.extraParams["enableThinking"] as? Boolean
-            ?: (model == Environment.QWEN_THINKING_MODEL)
+        // Note: enable_thinking parameter removed - not supported by Fireworks AI API
+        // The qwen3-235b-a22b-thinking model handles reasoning automatically
 
         logger.debug {
             "Building Qwen request: model=$model, " +
-                    "streaming=${config.streamingEnabled}, " +
-                    "thinking=$enableThinking"
+                    "streaming=${config.streamingEnabled}"
         }
 
         // Convert tool definitions to Qwen format
@@ -78,8 +76,7 @@ class QwenModelProvider(
             temperature = config.temperature ?: Environment.LOOP_TEMPERATURE,
             maxTokens = config.maxTokens ?: Environment.LOOP_MAX_TOKENS,
             stream = config.streamingEnabled,
-            tools = qwenTools,
-            enableThinking = enableThinking
+            tools = qwenTools
         )
     }
 

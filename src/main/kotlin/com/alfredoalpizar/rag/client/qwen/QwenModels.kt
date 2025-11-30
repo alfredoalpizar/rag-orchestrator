@@ -11,8 +11,8 @@ data class QwenChatRequest(
     val maxTokens: Int? = null,
     val stream: Boolean = false,
     val tools: List<QwenTool>? = null,
-    @JsonProperty("enable_thinking")
-    val enableThinking: Boolean? = null,
+    // Note: enable_thinking removed - not supported by Fireworks AI API
+    // The qwen3-235b-a22b-thinking model handles reasoning automatically
     @JsonProperty("top_p")
     val topP: Double? = null,
     @JsonProperty("top_k")
