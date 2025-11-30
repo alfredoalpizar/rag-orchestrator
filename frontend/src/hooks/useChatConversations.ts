@@ -42,7 +42,7 @@ export function useChatConversations(): UseChatConversationsResult {
     try {
       const newConv = await api.createConversation({ callerId: CALLER_ID });
       await loadConversations(); // Refresh list
-      setActiveConversationId(newConv.id);
+      setActiveConversationId(newConv.conversationId);
       return newConv;
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to create conversation');

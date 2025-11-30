@@ -51,9 +51,9 @@ export function ConversationSidebar({
           <div>
             {conversations.map((conversation) => (
               <ConversationListItem
-                key={conversation.id}
+                key={conversation.conversationId}
                 conversation={conversation}
-                isActive={conversation.id === activeConversationId}
+                isActive={conversation.conversationId === activeConversationId}
               />
             ))}
           </div>

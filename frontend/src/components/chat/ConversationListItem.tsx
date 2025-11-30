@@ -24,7 +24,7 @@ export function ConversationListItem({ conversation, isActive }: ConversationLis
   };
 
   const handleClick = () => {
-    navigate(`/chat/${conversation.id}`);
+    navigate(`/chat/${conversation.conversationId}`);
   };
 
   return (
@@ -37,7 +37,7 @@ export function ConversationListItem({ conversation, isActive }: ConversationLis
       }`}
     >
       <div className="font-semibold text-sm truncate mb-1">
-        {conversation.title || `Conversation ${conversation.id.slice(0, 8)}`}
+        {conversation.title || `Conversation ${conversation.conversationId?.slice(0, 8) || 'New'}`}
       </div>
       <div className="text-xs text-gray-400 flex items-center gap-2">
         <span>{conversation.messageCount} messages</span>

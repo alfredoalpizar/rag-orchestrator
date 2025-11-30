@@ -63,7 +63,10 @@ export interface ResponseChunkEvent {
 
 export interface ReasoningTraceEvent {
   type: 'ReasoningTrace';
-  reasoning: string;
+  conversationId: string;
+  content: string;  // The reasoning content from backend
+  stage: 'PLANNING' | 'SYNTHESIS';
+  timestamp: string;
 }
 
 export interface ExecutionPlanEvent {

@@ -102,7 +102,7 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
                 ...msg,
                 metadata: {
                   ...msg.metadata,
-                  reasoning: [...(msg.metadata?.reasoning || []), event.reasoning]
+                  reasoning: [...(msg.metadata?.reasoning || []), event.content]
                 }
               }
             : msg

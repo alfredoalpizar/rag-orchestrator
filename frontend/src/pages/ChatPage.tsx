@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useChatConversations } from '../hooks/useChatConversations';
 import { useChatMessages } from '../hooks/useChatMessages';
@@ -8,6 +8,7 @@ import { ChatContainer } from '../components/chat/ChatContainer';
 export default function ChatPage() {
   const { conversationId } = useParams<{ conversationId?: string }>();
   const navigate = useNavigate();
+  const pendingMessageRef = useRef<string | null>(null);
 
   const {
     conversations,
@@ -37,36 +38,41 @@ export default function ChatPage() {
     }
   }, [conversationId, activeConversationId, setActiveConversation, clearMessages]);
 
+  // Send pending message after conversation is created
+  useEffect(() => {
+    if (conversationId && pendingMessageRef.current) {
+      const messageToSend = pendingMessageRef.current;
+      pendingMessageRef.current = null;
+      sendMessage(messageToSend);
+    }
+  }, [conversationId, sendMessage]);
+
   const handleNewConversation = async () => {
     try {
       const newConv = await createConversation();
-      navigate(`/chat/${newConv.id}`);
+      navigate(`/chat/${newConv.conversationId}`);
     } catch (err) {
       console.error('Failed to create conversation:', err);
     }
   };
 
   const handleSendMessage = async (message: string) => {
-    let currentConversationId = conversationId;
-
-    // If no conversation exists, create one first
-    if (!currentConversationId) {
+    // If no conversation exists, create one first and store pending message
+    if (!conversationId) {
       try {
+        pendingMessageRef.current = message;
         const newConv = await createConversation();
-        currentConversationId = newConv.id;
-        navigate(`/chat/${newConv.id}`);
-        // Wait a bit for navigation and state updates
-        await new Promise(resolve => setTimeout(resolve, 100));
+        // Navigate to the new conversation (message will be sent via useEffect)
+        navigate(`/chat/${newConv.conversationId}`, { replace: true });
       } catch (err) {
         console.error('Failed to create conversation:', err);
-        return;
+        pendingMessageRef.current = null;
       }
+      return;
     }
 
-    // Send the message
-    if (currentConversationId) {
-      await sendMessage(message);
-    }
+    // Send the message to existing conversation
+    await sendMessage(message);
   };
 
   return (
