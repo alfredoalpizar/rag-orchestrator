@@ -11,24 +11,18 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import mu.KotlinLogging
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 /**
- * DeepSeek Single Strategy - Backward compatible implementation.
+ * DeepSeek Single Strategy - Optional strategy for DeepSeek models.
  *
  * Uses a single DeepSeek model (chat or reasoner) for all iterations.
  * This strategy replicates the original OrchestratorService behavior.
  *
- * Activated when: loop.model-strategy = deepseek_single
+ * Selection: Set Environment.LOOP_MODEL_STRATEGY = "deepseek_single"
+ * Requires: DEEPSEEK_API_KEY to be configured
  */
 @Component
-@ConditionalOnProperty(
-    prefix = "loop",
-    name = ["model-strategy"],
-    havingValue = "deepseek_single",
-    matchIfMissing = true  // Default strategy
-)
 class DeepSeekSingleStrategy(
     private val provider: DeepSeekModelProvider
 ) : ModelStrategyExecutor {

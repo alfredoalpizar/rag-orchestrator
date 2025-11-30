@@ -28,11 +28,14 @@ import org.springframework.stereotype.Service
 class OrchestratorService(
     private val contextManager: ContextManager,
     private val toolRegistry: ToolRegistry,
-    private val strategyExecutor: ModelStrategyExecutor,  // Injected based on configuration
+    private val strategyFactory: StrategyFactory,
     private val finalizerStrategy: FinalizerStrategy,
     private val objectMapper: ObjectMapper
 ) {
     private val logger = KotlinLogging.logger {}
+
+    // Strategy selected at runtime from Environment.kt
+    private val strategyExecutor: ModelStrategyExecutor = strategyFactory.getStrategy()
 
     init {
         val metadata = strategyExecutor.getStrategyMetadata()
@@ -43,6 +46,7 @@ class OrchestratorService(
             ║  Active Strategy: ${metadata.name.padEnd(35)}║
             ║  Strategy Type: ${metadata.strategyType.name.padEnd(37)}║
             ║  Reasoning Stream: ${if (metadata.supportsReasoningStream) "YES ✓" else "NO  ✗".padEnd(39)}║
+            ║  Source: Environment.kt (LOOP_MODEL_STRATEGY)          ║
             ║  ${metadata.description.padEnd(52)}║
             ╚════════════════════════════════════════════════════════╝
             """.trimIndent()
@@ -248,10 +252,11 @@ class OrchestratorService(
                             totalTokens += strategyEvent.tokensUsed
                             continueLoop = strategyEvent.shouldContinue
 
-                            logger.debug {
-                                "Iteration $iteration complete: " +
+                            logger.info {
+                                "[$conversationId] Iteration $iteration complete: " +
                                         "tokens=${strategyEvent.tokensUsed}, " +
-                                        "continue=$continueLoop"
+                                        "shouldContinue=$continueLoop, " +
+                                        "metadata=${strategyEvent.metadata}"
                             }
                         }
                     }
