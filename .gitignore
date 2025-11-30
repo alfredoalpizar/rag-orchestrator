@@ -50,6 +50,9 @@ Thumbs.db
 *.swp
 *~
 
+# Local development data
+local/
+
 # Kotlin
 .kotlin
 

@@ -1,8 +1,27 @@
+# ============================================
+# LOCAL DEVELOPMENT ONLY
+# ============================================
+# This file provides local development dependencies.
+#
+# Production deployments use:
+#   - AWS DynamoDB (not DynamoDB Local)
+#   - Hosted ChromaDB / managed vector DB
+#   - Kubernetes/ECS for orchestration
+#
+# Quick Start:
+#   docker-compose up -d
+#   ./scripts/init-dynamodb-local.sh   # One-time table setup
+#
+# Services:
+#   ChromaDB:       http://localhost:8001
+#   DynamoDB Local: http://localhost:8000
+# ============================================
+
 version: '3.8'
 
 services:
   # ChromaDB Vector Database
-  # Runs on port 8001 to avoid conflict with local DynamoDB on 8000
+  # Runs on port 8001 to avoid conflict with DynamoDB Local on 8000
   chromadb:
     image: chromadb/chroma:latest
     container_name: rag-chromadb
@@ -21,6 +40,21 @@ services:
       timeout: 10s
       retries: 5
       start_period: 60s
+
+  # DynamoDB Local for distributed document locks (in-memory mode)
+  # In production, use AWS DynamoDB by setting DYNAMODB_ENDPOINT to empty
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: rag-dynamodb-local
+    ports:
+      - "8000:8000"
+    command: "-jar DynamoDBLocal.jar -sharedDb -inMemory"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:8000 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   chromadb_data:
