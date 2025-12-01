@@ -45,13 +45,13 @@ export interface ToolCallStartEvent {
   type: 'ToolCallStart';
   toolName: string;
   arguments: Record<string, any>;
-  callId?: string;
+  toolCallId?: string;
   iteration?: number;  // Which agentic loop iteration this belongs to
 }
 
 export interface ToolCallResultEvent {
   type: 'ToolCallResult';
-  callId?: string;
+  toolCallId?: string;
   result: any;
   success: boolean;
   error?: string;

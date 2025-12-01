@@ -188,7 +188,7 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
       case 'ToolCallStart': {
         const iteration = event.iteration;
         const toolCall: ToolCall = {
-          id: event.callId || `tool-${Date.now()}`,
+          id: event.toolCallId || `tool-${Date.now()}`,
           name: event.toolName,
           arguments: event.arguments,
           timestamp: new Date().toISOString(),
@@ -210,7 +210,7 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
       }
 
       case 'ToolCallResult': {
-        const callId = event.callId || '';
+        const callId = event.toolCallId || '';
         const iteration = event.iteration;
         const existingCall = toolCallsMapRef.current.get(callId);
 
