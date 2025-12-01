@@ -470,14 +470,39 @@ class OrchestratorService(
                                 toolCalls = strategyEvent.toolCalls
                             ))
 
-                            strategyEvent.toolCalls.forEach { toolCall ->
-                                val result = toolRegistry.executeTool(toolCall)
-                                messages.add(Message(
-                                    role = MessageRole.TOOL,
-                                    content = result.result,
-                                    toolCallId = toolCall.id
-                                ))
-                                context.conversation.toolCallsCount++
+                            for (toolCall in strategyEvent.toolCalls) {
+                                val toolName = toolCall.function.name
+                                val arguments = parseArguments(toolCall.function.arguments)
+
+                                if (toolName == "finalize_answer") {
+                                    // Execute finalize_answer (non-streaming - ignore chunks)
+                                    val finalizeContent = executeFinalizeAnswer(
+                                        conversationId = conversationId,
+                                        context = arguments["context"] as? String ?: "",
+                                        userQuestion = arguments["user_question"] as? String ?: "",
+                                        answerStyle = arguments["answer_style"] as? String ?: "detailed"
+                                    ) { /* ignore chunks in sync mode */ }
+
+                                    finalContent = finalizeContent
+
+                                    // Persist to conversation history
+                                    contextManager.addMessage(
+                                        conversationId,
+                                        Message(role = MessageRole.ASSISTANT, content = finalizeContent)
+                                    )
+
+                                    // Mark loop as complete
+                                    continueLoop = false
+                                } else {
+                                    // Normal tool execution
+                                    val result = toolRegistry.executeTool(toolCall)
+                                    messages.add(Message(
+                                        role = MessageRole.TOOL,
+                                        content = result.result,
+                                        toolCallId = toolCall.id
+                                    ))
+                                    context.conversation.toolCallsCount++
+                                }
                             }
                         }
 
