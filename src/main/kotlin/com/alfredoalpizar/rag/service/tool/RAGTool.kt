@@ -17,7 +17,14 @@ class RAGTool(
 
     override val name = "rag_search"
 
-    override val description = "Search the knowledge base for relevant information. Use this when you need to retrieve factual information or documents from the knowledge base."
+    override val description = """
+        Search the knowledge base for relevant information.
+
+        IMPORTANT GUIDELINES:
+        - Only use this if the pre-retrieved context is clearly insufficient
+        - Do NOT call this multiple times with similar queries - if previous searches didn't find explicit info, the KB likely doesn't have it
+        - If you already have related context that allows you to infer an answer, use finalize_answer instead
+    """.trimIndent()
 
     override val parameters = mapOf(
         "type" to "object",

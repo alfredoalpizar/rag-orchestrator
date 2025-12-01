@@ -193,6 +193,12 @@ class OrchestratorService(
 
                                 finalContent = finalizeContent
 
+                                // Persist finalize_answer response to conversation history
+                                contextManager.addMessage(
+                                    conversationId,
+                                    Message(role = MessageRole.ASSISTANT, content = finalizeContent)
+                                )
+
                                 emit(StreamEvent.ToolCallResult(
                                     conversationId = conversationId,
                                     toolName = toolName,
@@ -280,6 +286,12 @@ class OrchestratorService(
                                     }
 
                                     finalContent = finalizeContent
+
+                                    // Persist finalize_answer response to conversation history
+                                    contextManager.addMessage(
+                                        conversationId,
+                                        Message(role = MessageRole.ASSISTANT, content = finalizeContent)
+                                    )
 
                                     emit(StreamEvent.ToolCallResult(
                                         conversationId = conversationId,
@@ -533,7 +545,13 @@ class OrchestratorService(
                 ## Tool Usage Guidelines
                 - Use rag_search for additional knowledge base queries if the pre-retrieved context is insufficient
                 - Call finalize_answer when you're ready to give your final response to the user
-                - Do not call finalize_answer until you have enough information to fully answer the question
+
+                ## When to Finalize
+                - If the knowledge base provides related context (even if not an explicit definition), USE IT to form a helpful answer
+                - You may synthesize and infer from available context - don't wait for a "perfect" explicit answer
+                - After 1-2 rag_search attempts without finding significantly new information, proceed to finalize_answer
+                - Combine KB context with reasonable inference to provide a helpful response
+                - It's better to give a helpful answer based on available context than to keep searching indefinitely
             """.trimIndent()
         ))
 
@@ -624,7 +642,10 @@ class OrchestratorService(
             - DO NOT describe what you're doing (e.g., "Let me break this down", "checking the context")
             - DO NOT mention instructions, context sources, or how you arrived at the answer
             - Just provide the answer directly in clear, readable markdown
-            - Base your answer ONLY on the context provided - do not add information not in the context
+            - Base your answer primarily on the provided context
+            - You MAY make reasonable inferences when the context implies something but doesn't state it explicitly
+            - If the context discusses a topic (e.g., password reset for locked users), you can infer related concepts (e.g., what being locked out means)
+            - If the context contains URLs, paths, or links, INCLUDE them in your response (e.g., "visit /internal/reset-password")
         """.trimIndent()
 
         val userPrompt = """

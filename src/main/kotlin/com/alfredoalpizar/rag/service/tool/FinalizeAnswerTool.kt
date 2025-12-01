@@ -22,12 +22,16 @@ class FinalizeAnswerTool : Tool {
     override val name = "finalize_answer"
 
     override val description = """
-        Call this tool when you have gathered enough information to provide a final answer to the user.
-        Pass all relevant context and the original user question.
-        This will generate a well-formatted final response.
+        Call this tool to provide your final answer to the user.
 
-        IMPORTANT: Only call this when you are ready to give your final answer.
-        Do not call this if you still need to search for more information or use other tools.
+        WHEN TO CALL THIS TOOL:
+        - When you have relevant context (even if not a perfect explicit answer)
+        - When you can reasonably infer an answer from available information
+        - After 1 rag_search if it didn't return significantly new information
+        - When the pre-retrieved context contains related information you can synthesize
+
+        You do NOT need a perfect explicit answer in the KB - synthesize from available context.
+        Pass all relevant context and the original user question.
     """.trimIndent()
 
     override val parameters = mapOf(
