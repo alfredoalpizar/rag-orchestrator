@@ -32,12 +32,11 @@ export default function ChatPage() {
   useEffect(() => {
     if (conversationId && conversationId !== activeConversationId) {
       setActiveConversation(conversationId);
-      clearMessages(); // Clear messages when switching conversations
+      // Messages are loaded automatically by useChatMessages hook
     } else if (!conversationId) {
       setActiveConversation(null);
-      clearMessages();
     }
-  }, [conversationId, activeConversationId, setActiveConversation, clearMessages]);
+  }, [conversationId, activeConversationId, setActiveConversation]);
 
   // Send pending message after conversation is created
   useEffect(() => {

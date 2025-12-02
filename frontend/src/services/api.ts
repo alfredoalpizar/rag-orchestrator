@@ -51,6 +51,13 @@ class ApiService {
     return data;
   }
 
+  async getConversationMessages(conversationId: string): Promise<Array<{ role: string; content: string }>> {
+    const { data } = await this.api.get<Array<{ role: string; content: string }>>(
+      `/chat/conversations/${conversationId}/messages`
+    );
+    return data;
+  }
+
   // Stream chat messages using Server-Sent Events
   // Uses fetch API with manual SSE parsing since backend uses POST for streaming
   async streamMessage(

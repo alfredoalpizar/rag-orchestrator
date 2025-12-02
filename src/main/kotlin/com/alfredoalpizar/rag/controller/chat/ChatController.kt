@@ -3,6 +3,7 @@ package com.alfredoalpizar.rag.controller.chat
 import com.alfredoalpizar.rag.model.request.ChatRequest
 import com.alfredoalpizar.rag.model.request.CreateConversationRequest
 import com.alfredoalpizar.rag.model.response.ConversationResponse
+import com.alfredoalpizar.rag.model.response.MessageResponse
 import com.alfredoalpizar.rag.model.response.StreamEvent
 import com.alfredoalpizar.rag.model.response.toResponse
 import com.alfredoalpizar.rag.service.context.ContextManager
@@ -47,6 +48,27 @@ class ChatController(
         val context = contextManager.loadConversation(conversationId)
 
         return ResponseEntity.ok(context.conversation.toResponse())
+    }
+
+    @GetMapping("/conversations/{conversationId}/messages")
+    suspend fun getConversationMessages(
+        @PathVariable conversationId: String
+    ): ResponseEntity<List<MessageResponse>> {
+        logger.debug { "Getting messages for conversation: $conversationId" }
+
+        val context = contextManager.loadConversation(conversationId)
+
+        val messages = context.messages
+            .filter { it.role == com.alfredoalpizar.rag.model.domain.MessageRole.USER ||
+                     it.role == com.alfredoalpizar.rag.model.domain.MessageRole.ASSISTANT }
+            .map { msg ->
+                MessageResponse(
+                    role = msg.role.name.lowercase(),
+                    content = msg.content
+                )
+            }
+
+        return ResponseEntity.ok(messages)
     }
 
     @PostMapping(

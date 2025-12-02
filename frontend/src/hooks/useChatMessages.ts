@@ -25,8 +25,34 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
   // Track iteration data during streaming
   const iterationDataRef = useRef<Map<number, IterationData>>(new Map());
 
-  // Cleanup on unmount or conversation change
+  // Load existing messages when conversation changes
   useEffect(() => {
+    if (!conversationId) {
+      setMessages([]);
+      return;
+    }
+
+    // Load conversation history
+    const loadHistory = async () => {
+      try {
+        const history = await api.getConversationMessages(conversationId);
+        const loadedMessages: ChatMessage[] = history.map((msg, index) => ({
+          id: `loaded-${index}-${Date.now()}`,
+          role: msg.role as 'user' | 'assistant',
+          content: msg.content,
+          timestamp: new Date().toISOString()
+        }));
+        setMessages(loadedMessages);
+      } catch (err) {
+        console.error('Failed to load conversation history:', err);
+        // Don't set error state - just start with empty messages
+        setMessages([]);
+      }
+    };
+
+    loadHistory();
+
+    // Cleanup on unmount
     return () => {
       cleanupFnRef.current?.();
     };

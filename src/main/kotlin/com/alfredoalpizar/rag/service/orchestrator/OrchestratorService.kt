@@ -176,7 +176,7 @@ class OrchestratorService(
                                 ))
 
                                 // Execute finalize_answer streaming
-                                val finalizeContent = executeFinalizeAnswer(
+                                val finalizeResult = executeFinalizeAnswer(
                                     conversationId = conversationId,
                                     context = arguments["context"] as? String ?: "",
                                     userQuestion = arguments["user_question"] as? String ?: "",
@@ -191,12 +191,13 @@ class OrchestratorService(
                                     ))
                                 }
 
-                                finalContent = finalizeContent
+                                finalContent = finalizeResult.content
+                                totalTokens += finalizeResult.tokensUsed
 
                                 // Persist finalize_answer response to conversation history
                                 contextManager.addMessage(
                                     conversationId,
-                                    Message(role = MessageRole.ASSISTANT, content = finalizeContent)
+                                    Message(role = MessageRole.ASSISTANT, content = finalizeResult.content)
                                 )
 
                                 emit(StreamEvent.ToolCallResult(
@@ -271,7 +272,7 @@ class OrchestratorService(
                                     ))
 
                                     // Execute finalize_answer streaming
-                                    val finalizeContent = executeFinalizeAnswer(
+                                    val finalizeResult = executeFinalizeAnswer(
                                         conversationId = conversationId,
                                         context = arguments["context"] as? String ?: "",
                                         userQuestion = arguments["user_question"] as? String ?: "",
@@ -285,12 +286,13 @@ class OrchestratorService(
                                         ))
                                     }
 
-                                    finalContent = finalizeContent
+                                    finalContent = finalizeResult.content
+                                    totalTokens += finalizeResult.tokensUsed
 
                                     // Persist finalize_answer response to conversation history
                                     contextManager.addMessage(
                                         conversationId,
-                                        Message(role = MessageRole.ASSISTANT, content = finalizeContent)
+                                        Message(role = MessageRole.ASSISTANT, content = finalizeResult.content)
                                     )
 
                                     emit(StreamEvent.ToolCallResult(
@@ -476,19 +478,20 @@ class OrchestratorService(
 
                                 if (toolName == "finalize_answer") {
                                     // Execute finalize_answer (non-streaming - ignore chunks)
-                                    val finalizeContent = executeFinalizeAnswer(
+                                    val finalizeResult = executeFinalizeAnswer(
                                         conversationId = conversationId,
                                         context = arguments["context"] as? String ?: "",
                                         userQuestion = arguments["user_question"] as? String ?: "",
                                         answerStyle = arguments["answer_style"] as? String ?: "detailed"
                                     ) { /* ignore chunks in sync mode */ }
 
-                                    finalContent = finalizeContent
+                                    finalContent = finalizeResult.content
+                                    totalTokens += finalizeResult.tokensUsed
 
                                     // Persist to conversation history
                                     contextManager.addMessage(
                                         conversationId,
-                                        Message(role = MessageRole.ASSISTANT, content = finalizeContent)
+                                        Message(role = MessageRole.ASSISTANT, content = finalizeResult.content)
                                     )
 
                                     // Mark loop as complete
@@ -634,7 +637,7 @@ class OrchestratorService(
      * @param userQuestion The original user question
      * @param answerStyle How to format the answer: concise, detailed, step_by_step
      * @param onChunk Callback for each streamed chunk
-     * @return The complete accumulated response
+     * @return FinalizeResult containing the accumulated response and tokens used
      */
     private suspend fun executeFinalizeAnswer(
         conversationId: String,
@@ -642,7 +645,7 @@ class OrchestratorService(
         userQuestion: String,
         answerStyle: String,
         onChunk: suspend (String) -> Unit
-    ): String {
+    ): FinalizeResult {
         logger.info {
             "[$conversationId] Executing finalize_answer: " +
                     "userQuestion='${userQuestion.take(50)}...', " +
@@ -706,6 +709,7 @@ class OrchestratorService(
 
         // Stream the response
         val accumulatedContent = StringBuilder()
+        var tokensUsed = 0
 
         qwenProvider.chatStream(request).collect { chunk ->
             val parsed = qwenProvider.extractStreamChunk(chunk)
@@ -715,18 +719,32 @@ class OrchestratorService(
                 onChunk(delta)
             }
 
+            // Capture token usage (typically in final chunk)
+            parsed.tokensUsed?.let { tokens ->
+                tokensUsed = tokens
+            }
+
             if (parsed.finishReason != null) {
                 logger.info {
                     "[$conversationId] finalize_answer complete: " +
                             "${accumulatedContent.length} chars, " +
+                            "tokensUsed=$tokensUsed, " +
                             "finishReason=${parsed.finishReason}"
                 }
             }
         }
 
-        return accumulatedContent.toString()
+        return FinalizeResult(accumulatedContent.toString(), tokensUsed)
     }
 }
+
+/**
+ * Result from finalize_answer execution.
+ */
+data class FinalizeResult(
+    val content: String,
+    val tokensUsed: Int
+)
 
 /**
  * Synchronous result for non-streaming operations.
