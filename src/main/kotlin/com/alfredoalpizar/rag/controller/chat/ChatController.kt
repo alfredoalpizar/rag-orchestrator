@@ -1,16 +1,14 @@
 package com.alfredoalpizar.rag.controller.chat
 
+import com.alfredoalpizar.rag.model.domain.MessageMetadata
+import com.alfredoalpizar.rag.model.domain.MessageRole
 import com.alfredoalpizar.rag.model.request.ChatRequest
 import com.alfredoalpizar.rag.model.request.CreateConversationRequest
-import com.alfredoalpizar.rag.model.response.ConversationResponse
-import com.alfredoalpizar.rag.model.response.MessageResponse
-import com.alfredoalpizar.rag.model.response.StreamEvent
-import com.alfredoalpizar.rag.model.response.toResponse
+import com.alfredoalpizar.rag.model.response.*
 import com.alfredoalpizar.rag.service.context.ContextManager
 import com.alfredoalpizar.rag.service.orchestrator.OrchestratorService
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.validation.Valid
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.reactor.flux
 import mu.KotlinLogging
 import org.springframework.http.MediaType
@@ -56,19 +54,53 @@ class ChatController(
     ): ResponseEntity<List<MessageResponse>> {
         logger.debug { "Getting messages for conversation: $conversationId" }
 
-        val context = contextManager.loadConversation(conversationId)
-
-        val messages = context.messages
-            .filter { it.role == com.alfredoalpizar.rag.model.domain.MessageRole.USER ||
-                     it.role == com.alfredoalpizar.rag.model.domain.MessageRole.ASSISTANT }
+        // Get messages with metadata
+        val messages = contextManager.getMessagesWithMetadata(conversationId)
+            .filter { it.role == MessageRole.USER || it.role == MessageRole.ASSISTANT }
             .map { msg ->
+                val metadata = parseMetadataResponse(msg.metadata)
                 MessageResponse(
                     role = msg.role.name.lowercase(),
-                    content = msg.content
+                    content = msg.content,
+                    metadata = metadata
                 )
             }
 
         return ResponseEntity.ok(messages)
+    }
+
+    /**
+     * Parse stored metadata JSON into response format.
+     */
+    private fun parseMetadataResponse(metadataJson: String?): MessageMetadataResponse? {
+        val metadata = MessageMetadata.fromJson(metadataJson) ?: return null
+
+        return MessageMetadataResponse(
+            toolCalls = metadata.toolCalls?.map { tc ->
+                ToolCallResponse(
+                    id = tc.id,
+                    name = tc.name,
+                    arguments = tc.arguments,
+                    result = tc.result?.summary,
+                    success = tc.success,
+                    iteration = tc.iteration
+                )
+            },
+            reasoning = metadata.reasoning,
+            iterationData = metadata.iterationData?.map { iter ->
+                IterationResponse(
+                    iteration = iter.iteration,
+                    reasoning = iter.reasoning,
+                    toolCalls = null  // Tool calls are in the flat list above
+                )
+            },
+            metrics = metadata.metrics?.let { m ->
+                MetricsResponse(
+                    iterations = m.iterations,
+                    totalTokens = m.totalTokens
+                )
+            }
+        )
     }
 
     @PostMapping(

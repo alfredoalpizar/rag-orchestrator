@@ -40,7 +40,26 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
           id: `loaded-${index}-${Date.now()}`,
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          // Include metadata from backend if available
+          metadata: msg.metadata ? {
+            toolCalls: msg.metadata.toolCalls?.map(tc => ({
+              id: tc.id,
+              name: tc.name,
+              arguments: tc.arguments || {},
+              result: tc.result,
+              success: tc.success,
+              iteration: tc.iteration,
+              timestamp: new Date().toISOString()
+            })),
+            reasoningContent: msg.metadata.reasoning,
+            iterationData: msg.metadata.iterationData?.map(iter => ({
+              iteration: iter.iteration,
+              reasoning: iter.reasoning,
+              toolCalls: iter.toolCalls
+            })),
+            metrics: msg.metadata.metrics
+          } : undefined
         }));
         setMessages(loadedMessages);
       } catch (err) {

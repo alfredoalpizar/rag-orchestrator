@@ -51,8 +51,8 @@ class ApiService {
     return data;
   }
 
-  async getConversationMessages(conversationId: string): Promise<Array<{ role: string; content: string }>> {
-    const { data } = await this.api.get<Array<{ role: string; content: string }>>(
+  async getConversationMessages(conversationId: string): Promise<Array<MessageWithMetadata>> {
+    const { data } = await this.api.get<Array<MessageWithMetadata>>(
       `/chat/conversations/${conversationId}/messages`
     );
     return data;
@@ -245,6 +245,39 @@ class ApiService {
     const { data } = await this.api.get<SearchStatusResponse>('/search/_status');
     return data;
   }
+}
+
+// Response type for loaded messages (matches backend MessageResponse)
+export interface MessageWithMetadata {
+  role: string;
+  content: string;
+  metadata?: {
+    toolCalls?: Array<{
+      id: string;
+      name: string;
+      arguments?: Record<string, any>;
+      result?: any;
+      success?: boolean;
+      iteration?: number;
+    }>;
+    reasoning?: string;
+    iterationData?: Array<{
+      iteration: number;
+      reasoning?: string;
+      toolCalls?: Array<{
+        id: string;
+        name: string;
+        arguments?: Record<string, any>;
+        result?: any;
+        success?: boolean;
+        iteration?: number;
+      }>;
+    }>;
+    metrics?: {
+      iterations?: number;
+      totalTokens?: number;
+    };
+  };
 }
 
 export default new ApiService();

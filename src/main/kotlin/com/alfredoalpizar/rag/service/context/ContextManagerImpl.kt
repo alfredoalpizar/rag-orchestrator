@@ -96,19 +96,27 @@ class ContextManagerImpl(
         )
     }
 
-    override suspend fun addMessage(conversationId: String, message: Message): ConversationContext = withContext(Dispatchers.IO + currentMDCContext()) {
-        logger.debug { "Adding message to conversation: $conversationId, role=${message.role}" }
+    override suspend fun addMessage(conversationId: String, message: Message): ConversationContext =
+        addMessageWithMetadata(conversationId, message, null)
+
+    override suspend fun addMessageWithMetadata(
+        conversationId: String,
+        message: Message,
+        metadataJson: String?
+    ): ConversationContext = withContext(Dispatchers.IO + currentMDCContext()) {
+        logger.debug { "Adding message to conversation: $conversationId, role=${message.role}, hasMetadata=${metadataJson != null}" }
 
         val conversation = storage.findConversationById(conversationId)
             ?: throw RagException("Conversation not found: $conversationId")
 
-        // Create message entity
+        // Create message entity with optional metadata
         val messageEntity = ConversationMessage(
             conversation = conversation,
             role = message.role,
             content = message.content,
             toolCallId = message.toolCallId,
-            tokenCount = estimateTokens(message.content)
+            tokenCount = estimateTokens(message.content),
+            metadata = metadataJson
         )
 
         storage.saveMessage(messageEntity)
@@ -124,6 +132,17 @@ class ContextManagerImpl(
 
         // Reload and return updated context
         loadConversation(conversationId)
+    }
+
+    override suspend fun getMessagesWithMetadata(conversationId: String): List<ConversationMessage> = withContext(Dispatchers.IO + currentMDCContext()) {
+        logger.debug { "Getting messages with metadata for conversation: $conversationId" }
+
+        // Verify conversation exists
+        storage.findConversationById(conversationId)
+            ?: throw RagException("Conversation not found: $conversationId")
+
+        // Return raw messages with metadata
+        storage.findMessagesByConversationId(conversationId)
     }
 
     override suspend fun getRecentConversations(callerId: String, limit: Int): List<Conversation> = withContext(Dispatchers.IO + currentMDCContext()) {
