@@ -12,3 +12,8 @@ data class ChatResponse(
     val tokensUsed: Int = 0,
     val timestamp: Instant = Instant.now()
 )
+
+data class MessageResponse(
+    val role: String,
+    val content: String
+)

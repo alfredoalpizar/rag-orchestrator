@@ -3,13 +3,15 @@ package com.alfredoalpizar.rag.controller.chat
 import com.alfredoalpizar.rag.model.request.ChatRequest
 import com.alfredoalpizar.rag.model.request.CreateConversationRequest
 import com.alfredoalpizar.rag.model.response.ConversationResponse
+import com.alfredoalpizar.rag.model.response.MessageResponse
+import com.alfredoalpizar.rag.model.response.StreamEvent
 import com.alfredoalpizar.rag.model.response.toResponse
 import com.alfredoalpizar.rag.service.context.ContextManager
 import com.alfredoalpizar.rag.service.orchestrator.OrchestratorService
 import com.fasterxml.jackson.databind.ObjectMapper
 import jakarta.validation.Valid
-import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.reactive.asFlow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.reactor.flux
 import mu.KotlinLogging
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -48,31 +50,50 @@ class ChatController(
         return ResponseEntity.ok(context.conversation.toResponse())
     }
 
+    @GetMapping("/conversations/{conversationId}/messages")
+    suspend fun getConversationMessages(
+        @PathVariable conversationId: String
+    ): ResponseEntity<List<MessageResponse>> {
+        logger.debug { "Getting messages for conversation: $conversationId" }
+
+        val context = contextManager.loadConversation(conversationId)
+
+        val messages = context.messages
+            .filter { it.role == com.alfredoalpizar.rag.model.domain.MessageRole.USER ||
+                     it.role == com.alfredoalpizar.rag.model.domain.MessageRole.ASSISTANT }
+            .map { msg ->
+                MessageResponse(
+                    role = msg.role.name.lowercase(),
+                    content = msg.content
+                )
+            }
+
+        return ResponseEntity.ok(messages)
+    }
+
     @PostMapping(
         path = ["/conversations/{conversationId}/messages/stream"],
         produces = [MediaType.TEXT_EVENT_STREAM_VALUE]
     )
-    suspend fun sendMessageStream(
+    fun sendMessageStream(
         @PathVariable conversationId: String,
         @Valid @RequestBody request: ChatRequest
     ): Flux<ServerSentEvent<String>> {
         logger.info { "Streaming message for conversation: $conversationId" }
 
-        val eventFlow = orchestratorService.processMessageStream(conversationId, request.message)
-
-        return Flux.create<ServerSentEvent<String>> { sink ->
-            kotlinx.coroutines.runBlocking {
-                eventFlow.collect { event ->
+        // Use flux{} builder for proper non-blocking Flow → Flux conversion
+        // This enables true streaming where events are sent as they arrive
+        return flux {
+            orchestratorService.processMessageStream(conversationId, request.message)
+                .collect { event ->
                     val sse = ServerSentEvent.builder<String>()
                         .event(event.javaClass.simpleName)
                         .data(objectMapper.writeValueAsString(event))
                         .build()
-                    sink.next(sse)
+                    send(sse)
                 }
-                sink.complete()
-            }
         }
-            .doOnError { error ->
+            .doOnError { error: Throwable ->
                 logger.error(error) { "Error streaming for conversation: $conversationId" }
             }
             .doOnComplete {

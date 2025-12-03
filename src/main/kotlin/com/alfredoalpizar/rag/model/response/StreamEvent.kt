@@ -10,6 +10,7 @@ sealed class StreamEvent {
         override val conversationId: String,
         val status: String,
         val details: String? = null,
+        val iteration: Int? = null,  // Which iteration this status belongs to
         override val timestamp: Instant = Instant.now()
     ) : StreamEvent()
 
@@ -18,6 +19,7 @@ sealed class StreamEvent {
         val toolName: String,
         val toolCallId: String,
         val arguments: Map<String, Any>,
+        val iteration: Int? = null,  // Which iteration this tool call belongs to
         override val timestamp: Instant = Instant.now()
     ) : StreamEvent()
 
@@ -27,12 +29,15 @@ sealed class StreamEvent {
         val toolCallId: String,
         val result: String,
         val success: Boolean,
+        val iteration: Int? = null,  // Which iteration this result belongs to
         override val timestamp: Instant = Instant.now()
     ) : StreamEvent()
 
     data class ResponseChunk(
         override val conversationId: String,
         val content: String,
+        val iteration: Int? = null,  // Which iteration this chunk belongs to
+        val isFinalAnswer: Boolean = false,  // True when streaming from finalize_answer
         override val timestamp: Instant = Instant.now()
     ) : StreamEvent()
 
@@ -55,6 +60,7 @@ sealed class StreamEvent {
         override val conversationId: String,
         val content: String,
         val stage: ReasoningStage,
+        val iteration: Int? = null,  // Which iteration this reasoning belongs to
         override val timestamp: Instant = Instant.now()
     ) : StreamEvent()
 

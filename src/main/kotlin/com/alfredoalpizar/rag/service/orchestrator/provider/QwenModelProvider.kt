@@ -47,14 +47,13 @@ class QwenModelProvider(
             else -> Environment.QWEN_THINKING_MODEL  // Default to thinking model
         }
 
-        // Enable thinking for thinking models
-        val enableThinking = config.extraParams["enableThinking"] as? Boolean
-            ?: (model == Environment.QWEN_THINKING_MODEL)
+        // Note: enable_thinking parameter removed - not supported by Fireworks AI API
+        // The qwen3-235b-a22b-thinking model handles reasoning automatically
 
         logger.debug {
             "Building Qwen request: model=$model, " +
                     "streaming=${config.streamingEnabled}, " +
-                    "thinking=$enableThinking"
+                    "reasoningEffort=${config.reasoningEffort ?: "default"}"
         }
 
         // Convert tool definitions to Qwen format
@@ -79,7 +78,7 @@ class QwenModelProvider(
             maxTokens = config.maxTokens ?: Environment.LOOP_MAX_TOKENS,
             stream = config.streamingEnabled,
             tools = qwenTools,
-            enableThinking = enableThinking
+            reasoningEffort = config.reasoningEffort  // Pass through for finalize_answer (use "none")
         )
     }
 
@@ -100,10 +99,13 @@ class QwenModelProvider(
     override fun extractStreamChunk(chunk: QwenStreamChunk): ProviderStreamChunk {
         val choice = chunk.choices.firstOrNull()
 
+        // Tool calls are already accumulated by QwenClientImpl - just convert them
+        val toolCalls = choice?.delta?.toolCalls?.mapNotNull { it.toToolCallOrNull() }
+
         return ProviderStreamChunk(
             contentDelta = choice?.delta?.content,
             reasoningDelta = choice?.delta?.reasoningContent,  // Qwen thinking stream
-            toolCalls = choice?.delta?.toolCalls?.map { it.toToolCall() },
+            toolCalls = if (toolCalls.isNullOrEmpty()) null else toolCalls,
             finishReason = choice?.finishReason,
             role = choice?.delta?.role,
             tokensUsed = chunk.usage?.totalTokens  // Extract token usage from final chunk
@@ -141,13 +143,35 @@ class QwenModelProvider(
         )
     }
 
+    /**
+     * Convert QwenToolCall to domain ToolCall.
+     * Throws if required fields are missing (for non-streaming responses).
+     */
     private fun QwenToolCall.toToolCall(): ToolCall {
         return ToolCall(
-            id = this.id,
-            type = this.type,
+            id = this.id ?: throw IllegalStateException("Tool call missing id"),
+            type = this.type ?: "function",
             function = FunctionCall(
-                name = this.function.name,
-                arguments = this.function.arguments
+                name = this.function?.name ?: throw IllegalStateException("Tool call missing function name"),
+                arguments = this.function?.arguments ?: ""
+            )
+        )
+    }
+
+    /**
+     * Convert QwenToolCall to domain ToolCall, returning null if required fields are missing.
+     * Used for streaming responses where tool calls are accumulated.
+     */
+    private fun QwenToolCall.toToolCallOrNull(): ToolCall? {
+        val id = this.id ?: return null
+        val name = this.function?.name ?: return null
+
+        return ToolCall(
+            id = id,
+            type = this.type ?: "function",
+            function = FunctionCall(
+                name = name,
+                arguments = this.function?.arguments ?: ""
             )
         )
     }

@@ -1,16 +1,13 @@
 import axios from 'axios';
 import type { AxiosInstance } from 'axios';
 import type {
-  ChatRequest,
   ConversationResponse,
   CreateConversationRequest,
   Document,
   DocumentListResponse,
   DocumentResponse,
   HealthResponse,
-  IngestDirectoryRequest,
   IngestDirectoryResponse,
-  IngestDocumentRequest,
   IngestDocumentResponse,
   IngestionStatsResponse,
   SearchResponse,
@@ -54,31 +51,136 @@ class ApiService {
     return data;
   }
 
+  async getConversationMessages(conversationId: string): Promise<Array<{ role: string; content: string }>> {
+    const { data } = await this.api.get<Array<{ role: string; content: string }>>(
+      `/chat/conversations/${conversationId}/messages`
+    );
+    return data;
+  }
+
   // Stream chat messages using Server-Sent Events
-  streamMessage(conversationId: string, message: string, onEvent: (event: StreamEvent) => void): EventSource {
-    // For SSE, we need to use EventSource instead of axios
-    const eventSource = new EventSource(`/api/v1/chat/conversations/${conversationId}/messages/stream`);
+  // Uses fetch API with manual SSE parsing since backend uses POST for streaming
+  async streamMessage(
+    conversationId: string,
+    message: string,
+    onEvent: (event: StreamEvent) => void,
+    onError?: (error: Error) => void
+  ): Promise<() => void> {
+    const controller = new AbortController();
 
-    // We'll need to send the message via POST first, then connect to SSE
-    // This is a simplified version - you may need to adjust based on your backend
-    this.api.post(`/chat/conversations/${conversationId}/messages/stream`, { message });
+    try {
+      // POST request that streams SSE response
+      const response = await fetch(
+        `/api/v1/chat/conversations/${conversationId}/messages/stream`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+          },
+          body: JSON.stringify({ message }),
+          signal: controller.signal,
+        }
+      );
 
-    eventSource.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data) as StreamEvent;
-        onEvent(data);
-      } catch (error) {
-        console.error('Failed to parse SSE event:', error);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-    };
 
-    eventSource.onerror = (error) => {
-      console.error('SSE connection error:', error);
-      eventSource.close();
-      onEvent({ type: 'error', error: 'Connection lost' });
-    };
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('Response body is not readable');
+      }
 
-    return eventSource;
+      // Parse SSE stream in background
+      (async () => {
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let currentEventType: string | null = null;
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) break;
+
+            // Accumulate chunks and split by newlines
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+
+            // Keep last incomplete line in buffer
+            buffer = lines.pop() || '';
+
+            // Process complete lines
+            for (const line of lines) {
+              // DEBUG: Log raw SSE lines
+              if (line.trim()) {
+                console.log('[SSE RAW]', line.substring(0, 120));
+              }
+
+              // Parse SSE event type (handle both 'event:' and 'event: ' per SSE spec)
+              if (line.startsWith('event:')) {
+                const value = line.slice(6);
+                currentEventType = value.startsWith(' ') ? value.slice(1).trim() : value.trim();
+                console.log('[SSE] Event type:', currentEventType);
+              }
+
+              // Parse SSE data (handle both 'data:' and 'data: ' per SSE spec)
+              else if (line.startsWith('data:')) {
+                const rawData = line.slice(5);
+                const data = (rawData.startsWith(' ') ? rawData.slice(1) : rawData).trim();
+
+                // Skip [DONE] marker
+                if (data === '[DONE]') continue;
+
+                try {
+                  const eventData = JSON.parse(data);
+
+                  // Combine SSE event type with parsed data
+                  const event = {
+                    ...eventData,
+                    type: currentEventType || 'Unknown'
+                  } as StreamEvent;
+
+                  console.log('[SSE] Parsed event:', event.type, 'content' in event ? `(${(event as any).content?.length} chars)` : '');
+
+                  // Reset event type for next event
+                  currentEventType = null;
+
+                  // Send event to handler BEFORE aborting
+                  onEvent(event);
+
+                  // Auto-abort on completion or error (after event is processed)
+                  if (event.type === 'Completed' || event.type === 'Error') {
+                    controller.abort();
+                    return;
+                  }
+                } catch (err) {
+                  console.error('Failed to parse SSE event:', data, err);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          // Ignore AbortError (expected when user cancels)
+          if (error instanceof Error && error.name !== 'AbortError') {
+            console.error('Stream reading error:', error);
+            onError?.(error);
+            onEvent({ type: 'Error', error: error.message });
+          }
+        }
+      })();
+
+      // Return abort function for cleanup
+      return () => {
+        controller.abort();
+      };
+
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error('Unknown error');
+      onError?.(err);
+      throw err;
+    }
   }
 
   // Document Management API

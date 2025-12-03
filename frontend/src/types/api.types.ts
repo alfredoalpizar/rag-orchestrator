@@ -10,18 +10,134 @@ export interface CreateConversationRequest {
 }
 
 export interface ConversationResponse {
-  id: string;
+  conversationId: string;
   callerId: string;
+  status?: string;
   createdAt: string;
   updatedAt: string;
   messageCount: number;
+  toolCallsCount?: number;
+  totalTokens?: number;
   title?: string;
+  lastMessageAt?: string | null;
 }
 
-export interface StreamEvent {
-  type: 'thinking' | 'content' | 'error' | 'done';
-  content?: string;
+// Comprehensive SSE Event Types
+export type StreamEvent =
+  | StatusUpdateEvent
+  | ToolCallStartEvent
+  | ToolCallResultEvent
+  | ResponseChunkEvent
+  | ReasoningTraceEvent
+  | ExecutionPlanEvent
+  | StageTransitionEvent
+  | CompletedEvent
+  | ErrorEvent;
+
+export interface StatusUpdateEvent {
+  type: 'StatusUpdate';
+  status: string;
+  iteration?: number;  // Which agentic loop iteration this belongs to
+  timestamp?: string;
+}
+
+export interface ToolCallStartEvent {
+  type: 'ToolCallStart';
+  toolName: string;
+  arguments: Record<string, any>;
+  toolCallId?: string;
+  iteration?: number;  // Which agentic loop iteration this belongs to
+}
+
+export interface ToolCallResultEvent {
+  type: 'ToolCallResult';
+  toolCallId?: string;
+  result: any;
+  success: boolean;
   error?: string;
+  iteration?: number;  // Which agentic loop iteration this belongs to
+}
+
+export interface ResponseChunkEvent {
+  type: 'ResponseChunk';
+  content: string;
+  delta?: string;
+  iteration?: number;  // Which agentic loop iteration this belongs to
+  isFinalAnswer?: boolean;  // True when streaming from finalize_answer
+}
+
+export interface ReasoningTraceEvent {
+  type: 'ReasoningTrace';
+  conversationId: string;
+  content: string;  // The reasoning content from backend
+  stage: 'PLANNING' | 'SYNTHESIS';
+  iteration?: number;  // Which agentic loop iteration this belongs to
+  timestamp: string;
+}
+
+export interface ExecutionPlanEvent {
+  type: 'ExecutionPlan';
+  plan: string;
+  steps?: string[];
+}
+
+export interface StageTransitionEvent {
+  type: 'StageTransition';
+  fromStage: string;
+  toStage: string;
+}
+
+export interface CompletedEvent {
+  type: 'Completed';
+  conversationId: string;
+  iterationsUsed: number;
+  tokensUsed: number;
+  timestamp: string;
+}
+
+export interface ErrorEvent {
+  type: 'Error';
+  error: string;
+  code?: string;
+}
+
+// Message types for UI display
+export interface ChatMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  metadata?: {
+    reasoning?: string[];
+    reasoningContent?: string;  // Streaming thinking content
+    toolCalls?: ToolCall[];
+    executionPlan?: string;
+    metrics?: {
+      iterations?: number;
+      totalTokens?: number;
+    };
+    // Iteration-based organization for multi-iteration agentic loops
+    iterationData?: IterationData[];
+  };
+}
+
+// Data for a single iteration in the agentic loop
+export interface IterationData {
+  iteration: number;
+  reasoning?: string;  // Thinking content for this iteration
+  toolCalls?: ToolCall[];  // Tool calls made in this iteration
+  intermediateContent?: string;  // Any content output during this iteration (not final answer)
+}
+
+export interface ToolCall {
+  id: string;
+  name: string;
+  arguments: Record<string, any>;
+  result?: any;
+  success?: boolean;
+  error?: string;
+  timestamp?: string;
+  iteration?: number;  // Which agentic loop iteration this belongs to
 }
 
 // Document Types

@@ -11,7 +11,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import mu.KotlinLogging
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 /**
@@ -21,14 +20,10 @@ import org.springframework.stereotype.Component
  * Fast, efficient execution without reasoning traces.
  * Good for production workloads where speed is critical.
  *
- * Activated when: loop.model-strategy = qwen_single_instruct
+ * Selection: Set Environment.LOOP_MODEL_STRATEGY = "qwen_single_instruct"
+ * Requires: FIREWORKS_API_KEY to be configured (Qwen via Fireworks AI)
  */
 @Component
-@ConditionalOnProperty(
-    prefix = "loop",
-    name = ["model-strategy"],
-    havingValue = "qwen_single_instruct"
-)
 class QwenSingleInstructStrategy(
     private val provider: QwenModelProvider
 ) : ModelStrategyExecutor {

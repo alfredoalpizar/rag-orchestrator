@@ -1,8 +1,10 @@
 package com.alfredoalpizar.rag.client.qwen
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 
 // Request Models
+@JsonInclude(JsonInclude.Include.NON_NULL)  // Exclude null fields from JSON (Fireworks rejects tools: null)
 data class QwenChatRequest(
     val model: String,
     val messages: List<QwenMessage>,
@@ -11,8 +13,8 @@ data class QwenChatRequest(
     val maxTokens: Int? = null,
     val stream: Boolean = false,
     val tools: List<QwenTool>? = null,
-    @JsonProperty("enable_thinking")
-    val enableThinking: Boolean? = null,
+    // Note: enable_thinking removed - not supported by Fireworks AI API
+    // The qwen3-235b-a22b-thinking model handles reasoning automatically
     @JsonProperty("top_p")
     val topP: Double? = null,
     @JsonProperty("top_k")
@@ -20,7 +22,11 @@ data class QwenChatRequest(
     @JsonProperty("presence_penalty")
     val presencePenalty: Double? = null,
     @JsonProperty("frequency_penalty")
-    val frequencyPenalty: Double? = null
+    val frequencyPenalty: Double? = null,
+    // Reasoning effort control for thinking models: "none", "low", "medium", "high"
+    // Use "none" for finalize_answer to get clean output without thinking
+    @JsonProperty("reasoning_effort")
+    val reasoningEffort: String? = null
 )
 
 data class QwenMessage(
@@ -46,14 +52,15 @@ data class QwenFunction(
 )
 
 data class QwenToolCall(
-    val id: String,
-    val type: String,
-    val function: QwenFunctionCall
+    val id: String? = null,       // May be null in streaming chunks
+    val type: String? = null,     // May be null in streaming chunks
+    val index: Int? = null,       // Index for streaming tool call accumulation
+    val function: QwenFunctionCall? = null  // May be null in streaming chunks
 )
 
 data class QwenFunctionCall(
-    val name: String,
-    val arguments: String
+    val name: String? = null,      // Arrives first in streaming
+    val arguments: String? = null  // Arrives in subsequent chunks
 )
 
 // Response Models
