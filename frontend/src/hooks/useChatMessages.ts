@@ -40,7 +40,26 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
           id: `loaded-${index}-${Date.now()}`,
           role: msg.role as 'user' | 'assistant',
           content: msg.content,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          // Include metadata from backend if available
+          metadata: msg.metadata ? {
+            toolCalls: msg.metadata.toolCalls?.map(tc => ({
+              id: tc.id,
+              name: tc.name,
+              arguments: tc.arguments || {},
+              result: tc.result,
+              success: tc.success,
+              iteration: tc.iteration,
+              timestamp: new Date().toISOString()
+            })),
+            reasoningContent: msg.metadata.reasoning,
+            iterationData: msg.metadata.iterationData?.map(iter => ({
+              iteration: iter.iteration,
+              reasoning: iter.reasoning,
+              toolCalls: iter.toolCalls
+            })),
+            metrics: msg.metadata.metrics
+          } : undefined
         }));
         setMessages(loadedMessages);
       } catch (err) {
@@ -58,64 +77,12 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
     };
   }, [conversationId]);
 
-  const sendMessage = useCallback(async (content: string) => {
-    if (!conversationId || !content.trim()) return;
-
-    // Clean up previous stream
-    cleanupFnRef.current?.();
-
-    try {
-      // 1. Add user message
-      const userMessage: ChatMessage = {
-        id: `user-${Date.now()}`,
-        role: 'user',
-        content: content.trim(),
-        timestamp: new Date().toISOString()
-      };
-      setMessages(prev => [...prev, userMessage]);
-
-      // 2. Create placeholder assistant message
-      const assistantMessageId = `assistant-${Date.now()}`;
-      streamingMessageIdRef.current = assistantMessageId;
-
-      const assistantMessage: ChatMessage = {
-        id: assistantMessageId,
-        role: 'assistant',
-        content: '',
-        timestamp: new Date().toISOString(),
-        metadata: {
-          reasoning: [],
-          toolCalls: [],
-        }
-      };
-      setMessages(prev => [...prev, assistantMessage]);
-
-      setIsStreaming(true);
-      setError(null);
-      setCurrentIteration(null);
-      toolCallsMapRef.current.clear();
-      iterationDataRef.current.clear();
-
-      // 3. Start streaming
-      const cleanup = await api.streamMessage(
-        conversationId,
-        content.trim(),
-        (event: StreamEvent) => {
-          handleStreamEvent(event, assistantMessageId);
-        },
-        (err: Error) => {
-          setError(err.message);
-          setIsStreaming(false);
-        }
-      );
-
-      cleanupFnRef.current = cleanup;
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send message');
-      setIsStreaming(false);
-    }
-  }, [conversationId]);
+  // Counter ref for generating unique IDs without Date.now() during render
+  const idCounterRef = useRef(0);
+  const generateId = (prefix: string) => {
+    idCounterRef.current += 1;
+    return `${prefix}-${idCounterRef.current}`;
+  };
 
   // Helper to get or create iteration data
   const getOrCreateIterationData = (iteration: number): IterationData => {
@@ -145,16 +112,22 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
     ));
   };
 
-  const handleStreamEvent = (event: StreamEvent, messageId: string) => {
-    // DEBUG: Log all incoming events with iteration info
-    console.log(`[SSE] Event: ${event.type}`, {
-      type: event.type,
-      iteration: 'iteration' in event ? event.iteration : undefined,
-      isFinalAnswer: 'isFinalAnswer' in event ? event.isFinalAnswer : undefined,
-      contentLength: 'content' in event ? (event.content as string)?.length : undefined,
-      contentPreview: 'content' in event ? (event.content as string)?.substring(0, 80) : undefined,
-    });
+  const updateMessageToolCalls = (messageId: string) => {
+    const toolCallsArray = Array.from(toolCallsMapRef.current.values());
+    setMessages(prev => prev.map(msg =>
+      msg.id === messageId
+        ? {
+            ...msg,
+            metadata: {
+              ...msg.metadata,
+              toolCalls: toolCallsArray
+            }
+          }
+        : msg
+    ));
+  };
 
+  const handleStreamEvent = (event: StreamEvent, messageId: string) => {
     switch (event.type) {
       case 'ResponseChunk': {
         const iteration = event.iteration;
@@ -162,7 +135,6 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
 
         if (isFinalAnswer) {
           // Final answer - append to main content
-          console.log(`[SSE] ResponseChunk (FINAL): "${event.content.substring(0, 50)}..."`);
           setMessages(prev => prev.map(msg =>
             msg.id === messageId
               ? { ...msg, content: (msg.content || '') + event.content }
@@ -170,7 +142,6 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
           ));
         } else if (iteration) {
           // Intermediate content for this iteration
-          console.log(`[SSE] ResponseChunk (iter ${iteration}): "${event.content.substring(0, 50)}..."`);
           const iterData = getOrCreateIterationData(iteration);
           iterData.intermediateContent = (iterData.intermediateContent || '') + event.content;
           updateMessageIterationData(messageId);
@@ -187,7 +158,6 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
 
       case 'ReasoningTrace': {
         const iteration = event.iteration;
-        console.log(`[SSE] ReasoningTrace (iter ${iteration}): "${event.content.substring(0, 50)}..."`);
 
         if (iteration) {
           // Add reasoning to specific iteration
@@ -214,7 +184,7 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
       case 'ToolCallStart': {
         const iteration = event.iteration;
         const toolCall: ToolCall = {
-          id: event.toolCallId || `tool-${Date.now()}`,
+          id: event.toolCallId || generateId('tool'),
           name: event.toolName,
           arguments: event.arguments,
           timestamp: new Date().toISOString(),
@@ -273,7 +243,10 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
                 ...msg,
                 metadata: {
                   ...msg.metadata,
-                  executionPlan: event.plan
+                  executionPlan: {
+                    reasoning: event.reasoning,
+                    plannedTools: event.plannedTools
+                  }
                 }
               }
             : msg
@@ -289,7 +262,7 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
         break;
 
       case 'StageTransition':
-        console.log(`Stage: ${event.fromStage} → ${event.toStage}`);
+        // Stage transitions are tracked but not logged
         break;
 
       case 'Completed':
@@ -326,20 +299,64 @@ export function useChatMessages(conversationId: string | null): UseChatMessagesR
     }
   };
 
-  const updateMessageToolCalls = (messageId: string) => {
-    const toolCallsArray = Array.from(toolCallsMapRef.current.values());
-    setMessages(prev => prev.map(msg =>
-      msg.id === messageId
-        ? {
-            ...msg,
-            metadata: {
-              ...msg.metadata,
-              toolCalls: toolCallsArray
-            }
-          }
-        : msg
-    ));
-  };
+  const sendMessage = useCallback(async (content: string) => {
+    if (!conversationId || !content.trim()) return;
+
+    // Clean up previous stream
+    cleanupFnRef.current?.();
+
+    try {
+      // 1. Add user message
+      const userMessage: ChatMessage = {
+        id: generateId('user'),
+        role: 'user',
+        content: content.trim(),
+        timestamp: new Date().toISOString()
+      };
+      setMessages(prev => [...prev, userMessage]);
+
+      // 2. Create placeholder assistant message
+      const assistantMessageId = generateId('assistant');
+      streamingMessageIdRef.current = assistantMessageId;
+
+      const assistantMessage: ChatMessage = {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: '',
+        timestamp: new Date().toISOString(),
+        metadata: {
+          reasoning: [],
+          toolCalls: [],
+        }
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+
+      setIsStreaming(true);
+      setError(null);
+      setCurrentIteration(null);
+      toolCallsMapRef.current.clear();
+      iterationDataRef.current.clear();
+
+      // 3. Start streaming
+      const cleanup = await api.streamMessage(
+        conversationId,
+        content.trim(),
+        (event: StreamEvent) => {
+          handleStreamEvent(event, assistantMessageId);
+        },
+        (err: Error) => {
+          setError(err.message);
+          setIsStreaming(false);
+        }
+      );
+
+      cleanupFnRef.current = cleanup;
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send message');
+      setIsStreaming(false);
+    }
+  }, [conversationId]);
 
   const clearMessages = useCallback(() => {
     setMessages([]);

@@ -3,6 +3,7 @@ package com.alfredoalpizar.rag.service.orchestrator
 import com.alfredoalpizar.rag.config.Environment
 import com.alfredoalpizar.rag.model.domain.*
 import com.alfredoalpizar.rag.model.response.StreamEvent
+import java.util.concurrent.ConcurrentHashMap
 import com.alfredoalpizar.rag.service.context.ContextManager
 import com.alfredoalpizar.rag.service.finalizer.FinalizerStrategy
 import com.alfredoalpizar.rag.service.orchestrator.provider.QwenModelProvider
@@ -107,6 +108,11 @@ class OrchestratorService(
             var continueLoop = true
             var finalContent = ""
 
+            // Metadata collectors for persistence
+            val collectedToolCalls = mutableListOf<ToolCallRecord>()
+            val collectedReasoning = StringBuilder()
+            val iterationReasoningMap = ConcurrentHashMap<Int, StringBuilder>()
+
             while (continueLoop && iteration < Environment.LOOP_MAX_ITERATIONS) {
                 iteration++
 
@@ -135,6 +141,11 @@ class OrchestratorService(
                     // Transform StrategyEvent → StreamEvent
                     when (strategyEvent) {
                         is StrategyEvent.ReasoningChunk -> {
+                            // Collect reasoning for metadata persistence
+                            collectedReasoning.append(strategyEvent.content)
+                            iterationReasoningMap.computeIfAbsent(iteration) { StringBuilder() }
+                                .append(strategyEvent.content)
+
                             // Only some strategies support reasoning
                             logger.debug { "[$conversationId] Received ReasoningChunk (${strategyEvent.content.length} chars), SHOW_REASONING=${Environment.LOOP_STREAMING_SHOW_REASONING_TRACES}" }
                             if (Environment.LOOP_STREAMING_SHOW_REASONING_TRACES) {
@@ -194,10 +205,34 @@ class OrchestratorService(
                                 finalContent = finalizeResult.content
                                 totalTokens += finalizeResult.tokensUsed
 
-                                // Persist finalize_answer response to conversation history
-                                contextManager.addMessage(
+                                // Collect finalize_answer tool call
+                                collectedToolCalls.add(ToolCallRecord(
+                                    id = toolCallId,
+                                    name = toolName,
+                                    arguments = arguments.filterKeys { it != "context" },  // Exclude large context
+                                    result = ToolResultSummary(
+                                        type = "finalize_answer",
+                                        summary = "Final answer generated (${finalizeResult.content.length} chars)",
+                                        success = true
+                                    ),
+                                    success = true,
+                                    iteration = iteration
+                                ))
+
+                                // Build metadata for persistence
+                                val metadata = buildMessageMetadata(
+                                    collectedToolCalls,
+                                    collectedReasoning.toString(),
+                                    iterationReasoningMap,
+                                    iteration,
+                                    totalTokens
+                                )
+
+                                // Persist finalize_answer response with metadata
+                                contextManager.addMessageWithMetadata(
                                     conversationId,
-                                    Message(role = MessageRole.ASSISTANT, content = finalizeResult.content)
+                                    Message(role = MessageRole.ASSISTANT, content = finalizeResult.content),
+                                    metadata.toJson()
                                 )
 
                                 emit(StreamEvent.ToolCallResult(
@@ -223,6 +258,17 @@ class OrchestratorService(
                                 ))
 
                                 val result = toolRegistry.executeTool(strategyEvent.toolCall)
+
+                                // Collect tool call for metadata
+                                val resultSummary = createToolResultSummary(toolName, result.result, result.success)
+                                collectedToolCalls.add(ToolCallRecord(
+                                    id = result.toolCallId,
+                                    name = result.toolName,
+                                    arguments = arguments,
+                                    result = resultSummary,
+                                    success = result.success,
+                                    iteration = iteration
+                                ))
 
                                 emit(StreamEvent.ToolCallResult(
                                     conversationId = conversationId,
@@ -289,10 +335,34 @@ class OrchestratorService(
                                     finalContent = finalizeResult.content
                                     totalTokens += finalizeResult.tokensUsed
 
-                                    // Persist finalize_answer response to conversation history
-                                    contextManager.addMessage(
+                                    // Collect finalize_answer tool call
+                                    collectedToolCalls.add(ToolCallRecord(
+                                        id = toolCallId,
+                                        name = toolName,
+                                        arguments = arguments.filterKeys { it != "context" },
+                                        result = ToolResultSummary(
+                                            type = "finalize_answer",
+                                            summary = "Final answer generated (${finalizeResult.content.length} chars)",
+                                            success = true
+                                        ),
+                                        success = true,
+                                        iteration = iteration
+                                    ))
+
+                                    // Build metadata for persistence
+                                    val metadata = buildMessageMetadata(
+                                        collectedToolCalls,
+                                        collectedReasoning.toString(),
+                                        iterationReasoningMap,
+                                        iteration,
+                                        totalTokens
+                                    )
+
+                                    // Persist finalize_answer response with metadata
+                                    contextManager.addMessageWithMetadata(
                                         conversationId,
-                                        Message(role = MessageRole.ASSISTANT, content = finalizeResult.content)
+                                        Message(role = MessageRole.ASSISTANT, content = finalizeResult.content),
+                                        metadata.toJson()
                                     )
 
                                     emit(StreamEvent.ToolCallResult(
@@ -319,6 +389,17 @@ class OrchestratorService(
 
                                     val result = toolRegistry.executeTool(toolCall)
 
+                                    // Collect tool call for metadata
+                                    val resultSummary = createToolResultSummary(toolName, result.result, result.success)
+                                    collectedToolCalls.add(ToolCallRecord(
+                                        id = result.toolCallId,
+                                        name = result.toolName,
+                                        arguments = arguments,
+                                        result = resultSummary,
+                                        success = result.success,
+                                        iteration = iteration
+                                    ))
+
                                     emit(StreamEvent.ToolCallResult(
                                         conversationId = conversationId,
                                         toolName = result.toolName,
@@ -342,10 +423,21 @@ class OrchestratorService(
                         is StrategyEvent.FinalResponse -> {
                             finalContent = strategyEvent.content
 
-                            // Save assistant message
-                            contextManager.addMessage(
+                            // Build metadata for persistence
+                            val updatedTokens = totalTokens + strategyEvent.tokensUsed
+                            val metadata = buildMessageMetadata(
+                                collectedToolCalls,
+                                collectedReasoning.toString(),
+                                iterationReasoningMap,
+                                iteration,
+                                updatedTokens
+                            )
+
+                            // Save assistant message with metadata
+                            contextManager.addMessageWithMetadata(
                                 conversationId,
-                                Message(role = MessageRole.ASSISTANT, content = finalContent)
+                                Message(role = MessageRole.ASSISTANT, content = finalContent),
+                                metadata.toJson()
                             )
 
                             // Apply finalizer
@@ -353,7 +445,7 @@ class OrchestratorService(
                                 finalContent,
                                 mapOf(
                                     "iterations" to iteration,
-                                    "tokens" to (totalTokens + strategyEvent.tokensUsed),
+                                    "tokens" to updatedTokens,
                                     "toolCalls" to context.conversation.toolCallsCount
                                 )
                             )
@@ -735,6 +827,60 @@ class OrchestratorService(
         }
 
         return FinalizeResult(accumulatedContent.toString(), tokensUsed)
+    }
+
+    /**
+     * Build MessageMetadata from collected data during the streaming loop.
+     */
+    private fun buildMessageMetadata(
+        toolCalls: List<ToolCallRecord>,
+        reasoning: String,
+        iterationReasoningMap: Map<Int, StringBuilder>,
+        iterations: Int,
+        totalTokens: Int
+    ): MessageMetadata {
+        val iterationData = iterationReasoningMap.map { (iter, reasoningBuilder) ->
+            IterationRecord(
+                iteration = iter,
+                reasoning = reasoningBuilder.toString().takeIf { it.isNotBlank() },
+                toolCallIds = toolCalls.filter { it.iteration == iter }.map { it.id }
+            )
+        }.sortedBy { it.iteration }
+
+        return MessageMetadata(
+            toolCalls = toolCalls.takeIf { it.isNotEmpty() },
+            reasoning = reasoning.takeIf { it.isNotBlank() },
+            iterationData = iterationData.takeIf { it.isNotEmpty() },
+            metrics = MetricsRecord(
+                iterations = iterations,
+                totalTokens = totalTokens
+            )
+        )
+    }
+
+    /**
+     * Create a summarized tool result for storage (avoiding large RAG results).
+     */
+    private fun createToolResultSummary(toolName: String, result: String, success: Boolean): ToolResultSummary {
+        return when (toolName) {
+            "rag_search" -> {
+                // Parse RAG search result to extract chunk IDs/scores if possible
+                // For now, just summarize
+                val numResults = result.count { it == '\n' }.coerceAtLeast(1)
+                ToolResultSummary(
+                    type = "rag_search",
+                    summary = "Retrieved $numResults document chunks (${result.length} chars)",
+                    success = success
+                )
+            }
+            else -> {
+                ToolResultSummary(
+                    type = toolName,
+                    summary = if (result.length > 200) "${result.take(200)}..." else result,
+                    success = success
+                )
+            }
+        }
     }
 }
 

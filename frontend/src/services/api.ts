@@ -51,8 +51,8 @@ class ApiService {
     return data;
   }
 
-  async getConversationMessages(conversationId: string): Promise<Array<{ role: string; content: string }>> {
-    const { data } = await this.api.get<Array<{ role: string; content: string }>>(
+  async getConversationMessages(conversationId: string): Promise<Array<MessageWithMetadata>> {
+    const { data } = await this.api.get<Array<MessageWithMetadata>>(
       `/chat/conversations/${conversationId}/messages`
     );
     return data;
@@ -113,16 +113,10 @@ class ApiService {
 
             // Process complete lines
             for (const line of lines) {
-              // DEBUG: Log raw SSE lines
-              if (line.trim()) {
-                console.log('[SSE RAW]', line.substring(0, 120));
-              }
-
               // Parse SSE event type (handle both 'event:' and 'event: ' per SSE spec)
               if (line.startsWith('event:')) {
                 const value = line.slice(6);
                 currentEventType = value.startsWith(' ') ? value.slice(1).trim() : value.trim();
-                console.log('[SSE] Event type:', currentEventType);
               }
 
               // Parse SSE data (handle both 'data:' and 'data: ' per SSE spec)
@@ -141,8 +135,6 @@ class ApiService {
                     ...eventData,
                     type: currentEventType || 'Unknown'
                   } as StreamEvent;
-
-                  console.log('[SSE] Parsed event:', event.type, 'content' in event ? `(${(event as any).content?.length} chars)` : '');
 
                   // Reset event type for next event
                   currentEventType = null;
@@ -253,6 +245,39 @@ class ApiService {
     const { data } = await this.api.get<SearchStatusResponse>('/search/_status');
     return data;
   }
+}
+
+// Response type for loaded messages (matches backend MessageResponse)
+export interface MessageWithMetadata {
+  role: string;
+  content: string;
+  metadata?: {
+    toolCalls?: Array<{
+      id: string;
+      name: string;
+      arguments?: Record<string, any>;
+      result?: any;
+      success?: boolean;
+      iteration?: number;
+    }>;
+    reasoning?: string;
+    iterationData?: Array<{
+      iteration: number;
+      reasoning?: string;
+      toolCalls?: Array<{
+        id: string;
+        name: string;
+        arguments?: Record<string, any>;
+        result?: any;
+        success?: boolean;
+        iteration?: number;
+      }>;
+    }>;
+    metrics?: {
+      iterations?: number;
+      totalTokens?: number;
+    };
+  };
 }
 
 export default new ApiService();

@@ -29,7 +29,10 @@ data class ConversationMessage(
     val createdAt: Instant = Instant.now(),
 
     @Column(name = "token_count")
-    val tokenCount: Int? = null
+    val tokenCount: Int? = null,
+
+    @Column(name = "metadata", columnDefinition = "TEXT")
+    val metadata: String? = null
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true

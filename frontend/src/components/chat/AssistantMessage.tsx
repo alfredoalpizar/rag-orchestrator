@@ -68,10 +68,31 @@ export function AssistantMessage({ message, currentIteration }: AssistantMessage
           {/* Execution plan */}
           {metadata?.executionPlan && (
             <div className="mt-3 border-l-4 border-blue-400 bg-blue-50 rounded-r-lg px-3 py-2">
-              <div className="text-sm font-medium text-blue-900 mb-1">📋 Execution Plan</div>
-              <div className="text-sm text-gray-700 whitespace-pre-wrap">
-                {metadata.executionPlan}
-              </div>
+              <div className="text-sm font-medium text-blue-900 mb-2">📋 Execution Plan</div>
+
+              {/* Reasoning */}
+              {metadata.executionPlan.reasoning && (
+                <div className="text-sm text-gray-700 mb-3">
+                  {metadata.executionPlan.reasoning}
+                </div>
+              )}
+
+              {/* Planned Tools */}
+              {metadata.executionPlan.plannedTools && metadata.executionPlan.plannedTools.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-xs font-medium text-blue-800 uppercase tracking-wider">
+                    Planned Steps
+                  </div>
+                  <ol className="list-decimal list-inside space-y-1">
+                    {metadata.executionPlan.plannedTools.map((tool, index) => (
+                      <li key={index} className="text-sm text-gray-700">
+                        <span className="font-medium text-blue-700">{tool.name}</span>
+                        <span className="text-gray-500"> — {tool.purpose}</span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              )}
             </div>
           )}
 

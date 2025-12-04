@@ -75,10 +75,18 @@ export interface ReasoningTraceEvent {
   timestamp: string;
 }
 
+export interface PlannedTool {
+  name: string;
+  purpose: string;
+  arguments: Record<string, any>;
+}
+
 export interface ExecutionPlanEvent {
   type: 'ExecutionPlan';
-  plan: string;
-  steps?: string[];
+  conversationId: string;
+  plannedTools: PlannedTool[];
+  reasoning: string;
+  timestamp: string;
 }
 
 export interface StageTransitionEvent {
@@ -102,6 +110,11 @@ export interface ErrorEvent {
 }
 
 // Message types for UI display
+export interface ExecutionPlan {
+  reasoning: string;
+  plannedTools: PlannedTool[];
+}
+
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
@@ -111,7 +124,7 @@ export interface ChatMessage {
     reasoning?: string[];
     reasoningContent?: string;  // Streaming thinking content
     toolCalls?: ToolCall[];
-    executionPlan?: string;
+    executionPlan?: ExecutionPlan;
     metrics?: {
       iterations?: number;
       totalTokens?: number;
