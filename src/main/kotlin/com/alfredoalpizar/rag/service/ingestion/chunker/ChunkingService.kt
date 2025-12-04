@@ -1,113 +1,108 @@
 package com.alfredoalpizar.rag.service.ingestion.chunker
 
+import com.alfredoalpizar.rag.model.document.ChunkMetadata
 import com.alfredoalpizar.rag.model.document.Document
 import com.alfredoalpizar.rag.model.document.DocumentChunk
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
 
 /**
- * Service that routes documents to appropriate chunking strategies
- * based on their category.
+ * Simplified chunking service using generic heading-based splitting.
  *
- * Supported categories:
- * - workflow: WorkflowChunker (chunk by steps)
- * - faq: FAQChunker (chunk by Q&A pairs)
- * - reference: ReferenceChunker (chunk by sections)
- * - troubleshooting: TroubleshootingChunker (chunk by issues)
+ * Works for ALL document categories with one simple approach:
+ * - Split on ## headings (keeps the heading with its content)
+ * - Falls back to single chunk if no headings found
  *
- * If category is not recognized or chunking fails, falls back to
- * creating a single chunk with all content.
+ * No need for separate WorkflowChunker, FAQChunker, ReferenceChunker, TroubleshootingChunker.
  */
 @Service
-class ChunkingService(
-    private val workflowChunker: WorkflowChunker,
-    private val faqChunker: FAQChunker,
-    private val referenceChunker: ReferenceChunker,
-    private val troubleshootingChunker: TroubleshootingChunker
-) {
+class ChunkingService {
     private val logger = KotlinLogging.logger {}
 
-    // Map of category to chunker
-    private val chunkers: Map<String, Chunker> by lazy {
-        mapOf(
-            "workflow" to workflowChunker,
-            "faq" to faqChunker,
-            "reference" to referenceChunker,
-            "troubleshooting" to troubleshootingChunker
-        )
-    }
+    // Regex to split on ## headings (lookahead keeps the heading with its content)
+    private val headingPattern = Regex("""(?=^##\s)""", RegexOption.MULTILINE)
+
+    // Regex to extract heading text from a section
+    private val headingExtractPattern = Regex("""^##\s+(.+)$""", RegexOption.MULTILINE)
 
     /**
-     * Chunk a document using the appropriate strategy for its category.
+     * Chunk a document by splitting on ## headings.
+     * Works for any category - no category-specific logic needed.
      *
      * @param document Document to chunk
      * @return List of document chunks
-     * @throws ChunkingException if chunking fails
      */
     fun chunk(document: Document): List<DocumentChunk> {
-        val category = document.metadata.category.lowercase()
+        val docId = document.metadata.id
+        val body = document.content.body
 
-        logger.debug { "Chunking document ${document.metadata.id} with category: $category" }
+        logger.debug { "Chunking document $docId with generic heading-based chunker" }
 
-        val chunker = chunkers[category]
+        // Split on ## headings
+        val sections = body.split(headingPattern)
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
 
-        if (chunker == null) {
-            logger.warn { "No chunker found for category: $category, using fallback" }
-            return createFallbackChunk(document)
+        if (sections.isEmpty()) {
+            logger.debug { "No sections found in document $docId, creating single chunk" }
+            return listOf(createChunk(document, 0, "All Content", buildFullText(document)))
         }
 
-        return try {
-            val chunks = chunker.chunk(document)
-            if (chunks.isEmpty()) {
-                logger.warn { "Chunker produced no chunks for document ${document.metadata.id}, using fallback" }
-                createFallbackChunk(document)
-            } else {
-                chunks
-            }
-        } catch (e: Exception) {
-            logger.error(e) { "Error chunking document ${document.metadata.id}, using fallback" }
-            createFallbackChunk(document)
+        val chunks = sections.mapIndexed { index, section ->
+            val heading = extractHeading(section) ?: "Section ${index + 1}"
+            createChunk(document, index, heading, section)
         }
+
+        logger.debug { "Chunked document $docId into ${chunks.size} sections" }
+        return chunks
     }
 
     /**
-     * Create a fallback chunk when category-specific chunking fails or is unavailable.
-     * Returns a single chunk with all content.
+     * Extract the heading text from a section (first ## line).
      */
-    private fun createFallbackChunk(document: Document): List<DocumentChunk> {
-        val text = buildString {
+    private fun extractHeading(section: String): String? {
+        val match = headingExtractPattern.find(section)
+        return match?.groupValues?.get(1)?.trim()
+    }
+
+    /**
+     * Build full document text for fallback single-chunk case.
+     */
+    private fun buildFullText(document: Document): String {
+        return buildString {
             append(document.metadata.title)
-            append("\n\n")
-            if (document.content.summary != null) {
-                append(document.content.summary)
+            document.content.summary?.let {
                 append("\n\n")
+                append(it)
             }
+            append("\n\n")
             append(document.content.body)
         }
-
-        return listOf(
-            DocumentChunk(
-                id = "${document.metadata.id}::all",
-                text = text.trim(),
-                metadata = com.alfredoalpizar.rag.model.document.ChunkMetadata(
-                    docId = document.metadata.id,
-                    docTitle = document.metadata.title,
-                    category = document.metadata.category,
-                    status = document.metadata.status,
-                    tags = document.metadata.tags ?: emptyList(),
-                    lastUpdated = document.metadata.lastUpdated?.toString(),
-                    chunkType = com.alfredoalpizar.rag.model.document.ChunkMetadata.TYPE_SEMANTIC_CHUNK,
-                    chunkHeading = "All Content"
-                )
-            )
-        )
     }
 
     /**
-     * Get available chunking categories.
+     * Create a DocumentChunk with proper metadata.
      */
-    fun getAvailableCategories(): Set<String> {
-        return chunkers.keys
+    private fun createChunk(
+        document: Document,
+        index: Int,
+        heading: String,
+        text: String
+    ): DocumentChunk {
+        return DocumentChunk(
+            id = "${document.metadata.id}::section_$index",
+            text = text,
+            metadata = ChunkMetadata(
+                docId = document.metadata.id,
+                docTitle = document.metadata.title,
+                category = document.metadata.category,
+                status = document.metadata.status,
+                tags = document.metadata.tags ?: emptyList(),
+                lastUpdated = document.metadata.lastUpdated?.toString(),
+                chunkType = ChunkMetadata.TYPE_SEMANTIC_CHUNK,
+                chunkHeading = heading
+            )
+        )
     }
 }
 
