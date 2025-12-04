@@ -4,11 +4,8 @@ import com.alfredoalpizar.rag.config.Environment
 import kotlinx.coroutines.delay
 import mu.KotlinLogging
 import org.springframework.stereotype.Service
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration
-import software.amazon.awssdk.regions.Region
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient
 import software.amazon.awssdk.services.dynamodb.model.*
-import java.net.URI
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -45,35 +42,16 @@ import kotlin.coroutines.suspendCoroutine
  * - TTL: expires_at (automatic cleanup)
  */
 @Service
-class DocumentLock {
-
+class DocumentLock(
+    private val dynamoDb: DynamoDbAsyncClient
+) {
     private val logger = KotlinLogging.logger {}
 
     private val tableName = Environment.DYNAMODB_LOCK_TABLE
     private val instanceId = Environment.INSTANCE_ID
 
-    private val dynamoDb: DynamoDbAsyncClient = run {
-        val clientBuilder = DynamoDbAsyncClient.builder()
-            .region(Region.of(Environment.DYNAMODB_REGION))
-            .overrideConfiguration(
-                ClientOverrideConfiguration.builder()
-                    .apiCallTimeout(Duration.ofSeconds(10))
-                    .apiCallAttemptTimeout(Duration.ofSeconds(5))
-                    .build()
-            )
-
-        // If DYNAMODB_ENDPOINT is set, use it (local DynamoDB)
-        // Otherwise, use default AWS endpoints (production)
-        if (Environment.DYNAMODB_ENDPOINT != null) {
-            logger.info { "Initializing DynamoDB client with endpoint: ${Environment.DYNAMODB_ENDPOINT}" }
-            clientBuilder.endpointOverride(URI.create(Environment.DYNAMODB_ENDPOINT))
-        } else {
-            logger.info { "Initializing DynamoDB client with AWS endpoints (region: ${Environment.DYNAMODB_REGION})" }
-        }
-
-        clientBuilder.build().also {
-            logger.info { "DynamoDB document locking initialized (table: $tableName, instance: $instanceId)" }
-        }
+    init {
+        logger.info { "DocumentLock initialized (table: $tableName, instance: $instanceId)" }
     }
 
     suspend fun <T> withLock(
